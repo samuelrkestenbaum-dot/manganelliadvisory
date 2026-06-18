@@ -63,9 +63,10 @@ It's a priority cue, not a verdict — your read of the conversation always wins
   blank or estimated. The web pass did **not** recompute the seller-intent scores —
   those still reflect the original succession/age signals, so a firm's niche is now
   richer than its score "knows."
-- **Edits save in your browser only** for now — if you switch computers, your
-  warm-path notes won't follow yet. We can turn on shared/synced editing when we're
-  ready; just say the word.
+- **Edits now sync live across the team** (Supabase-backed) — stage, owner, activity,
+  warm-path, buyer-outreach status, and next-actions show up for both you and me, on any
+  computer. A local copy is cached for offline use; the badge in the header shows whether
+  you're synced or offline.
 
 ## The headline numbers (today)
 441 firms · 45 High / 132 Medium intent · 100 retiring-owner signals · 201
