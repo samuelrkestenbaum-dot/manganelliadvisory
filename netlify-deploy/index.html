@@ -75,6 +75,10 @@
   .deflist dd{color:var(--mut);margin:0}
   .help{cursor:help;border-bottom:1px dotted var(--mut)}
   .sec h3 .cap{display:block;margin-top:3px;font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--mut)}
+  .stale{color:#ffb454;font-weight:700;cursor:help}
+  .fch{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut);margin:22px 22px 6px}
+  #page-forecast table{width:calc(100% - 44px);margin:0 22px 8px}
+  #fcontent .stalerow:hover{background:#241c1c}
 </style>
 </head>
 <body>
@@ -85,6 +89,7 @@
     <div class="tab active" data-tab="overview">Overview</div>
     <div class="tab" data-tab="supply">Supply · off-market</div>
     <div class="tab" data-tab="buyers">Buyers · demand</div>
+    <div class="tab" data-tab="forecast">Forecast</div>
     <div class="tab" data-tab="about">Method &amp; services</div>
   </div>
 </header>
@@ -124,6 +129,7 @@
     <select id="fSucc"><option value="">All succession</option><option>High</option><option>Medium</option><option>Low</option></select>
     <select id="fState"><option value="">All states</option></select>
     <select id="fSvc"><option value="">All services</option></select>
+    <select id="fOwner"><option value="">All owners</option></select>
     <label class="chk" style="margin:0 4px"><input type="checkbox" id="fWarm"/> Warm path only</label>
     <button id="queue">🔥 Call queue</button><button id="reset">Reset</button><button id="export">Export CSV</button>
     <span class="muted" id="count"></span>
@@ -155,6 +161,19 @@
     <span class="muted" id="bcount"></span>
   </div>
   <div class="wrap"><table><thead><tr id="bhead"></tr></thead><tbody id="bbody"></tbody></table></div>
+</section>
+
+<!-- ============ FORECAST ============ -->
+<section class="page" id="page-forecast">
+  <div class="intro">
+    <b>What's the book worth.</b> Every open opportunity carries an estimated enterprise value
+    (revenue × a sector multiple) and a Manganelli fee estimate, multiplied by a stage-based win
+    probability to give a <b>weighted pipeline</b>. Use it to see where value is concentrated and which
+    stage is the bottleneck. Multiples, fee schedule, and probabilities are tunable assumptions
+    (documented in <span class="muted">/docs/PIPELINE-STAGE-MODEL-SPEC.md</span>) — treat the dollars as directional, not quotes.
+  </div>
+  <div style="padding:0 22px"><div class="cards" id="fcards"></div></div>
+  <div id="fcontent" style="padding:0 0 60px"></div>
 </section>
 
 <!-- ============ ABOUT ============ -->
@@ -218,6 +237,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   document.querySelectorAll("section.page").forEach(x=>x.classList.remove("active"));
   t.classList.add("active");
   document.getElementById("page-"+t.dataset.tab).classList.add("active");
+  if(t.dataset.tab==="forecast")renderForecast();
   closeDrawer();
 });
 
@@ -233,7 +253,7 @@ function saveEdit(firm,patch){edits[firm]=Object.assign({},edits[firm]||{},patch
 const COLS=[["priority_rank","#"],["firm","Firm"],["live_intent","Intent"],["live_band","Band"],
   ["succession_strength","Succession"],["owner_count","Own"],["founder_led","Founder-led"],
   ["revenue","Revenue"],["service_mix","Service mix"],["state","St"],["contact_person","Contact"],
-  ["email_confidence","Email"],["wave","Wave"],["outreach_status","Status"]];
+  ["email_confidence","Email"],["wave","Wave"],["stage","Stage"],["weighted_fee","Weighted"]];
 let sortKey="live_intent",sortDir=-1,q="",queueMode=false;
 function val(id){return document.getElementById(id).value;}
 function rows(){let r=view();
@@ -242,8 +262,12 @@ function rows(){let r=view();
   if(fW)r=r.filter(e=>String(e.wave)===fW);if(fB)r=r.filter(e=>e.live_band===fB);
   if(fS)r=r.filter(e=>e.succession_strength===fS);if(fSt)r=r.filter(e=>e.state===fSt);
   if(fSv)r=r.filter(e=>(e.service_mix||"").includes(fSv));if(warm)r=r.filter(e=>e.warm_path_points>0);
-  if(queueMode)r=r.filter(e=>(e.live_band==="High"||e.live_band==="Medium")&&["New","Researching","Queued"].includes(e.outreach_status));
-  r.sort((a,b)=>{let x=a[sortKey],y=b[sortKey];if(typeof x==="string")return sortDir*((x||"").localeCompare(y||""));return sortDir*(((x||0)-(y||0)));});
+  const fo=val("fOwner");if(fo)r=r.filter(e=>(e.owner||"Unassigned")===fo);
+  if(queueMode)r=r.filter(e=>(e.live_band==="High"||e.live_band==="Medium")&&["sourced","researched","contacted","engaged","qualified"].includes(curStage(e)));
+  r.sort((a,b)=>{
+    if(sortKey==="stage")return sortDir*(STAGES.findIndex(s=>s.k===curStage(a))-STAGES.findIndex(s=>s.k===curStage(b)));
+    if(sortKey==="weighted_fee"){const fa=forecast(a),fb=forecast(b);return sortDir*(((fa?fa.weighted_fee:0))-((fb?fb.weighted_fee:0)));}
+    let x=a[sortKey],y=b[sortKey];if(typeof x==="string")return sortDir*((x||"").localeCompare(y||""));return sortDir*(((x||0)-(y||0)));});
   return r;}
 function render(){
   const head=document.getElementById("head");
@@ -259,7 +283,9 @@ function render(){
     <td>${e.owner_count||"—"}</td><td>${e.founder_led}</td><td>${fmtMoney(e.revenue)}</td>
     <td class="muted">${esc(e.service_mix)}</td><td>${esc(e.state)}</td>
     <td>${esc(e.contact_person)||'<span class="muted">—</span>'}</td>
-    <td class="muted">${esc(e.email_confidence)||"—"}</td><td>${e.wave}</td><td class="muted">${esc(e.outreach_status)}</td></tr>`).join("");
+    <td class="muted">${esc(e.email_confidence)||"—"}</td><td>${e.wave}</td>
+    <td>${esc(STAGE[curStage(e)].label)}${isStale(e)?` <span class="stale" title="In stage ${daysInStage(e)}d — past SLA">⚠</span>`:""}</td>
+    <td class="muted">${(()=>{const f=forecast(e);return f?fmtMoney(f.weighted_fee):"—";})()}</td></tr>`).join("");
   document.querySelectorAll("#body tr").forEach(tr=>tr.onclick=()=>openSeller(tr.dataset.firm));
 }
 const COMPDEF={
@@ -277,6 +303,31 @@ const BTYPEDEF={
   "Regional / Boutique Firm":"Smaller independent making the occasional tuck-in acquisition.",
   "Search Fund":"An individual operator (often investor-backed) looking to buy and personally run one firm.",
   "Independent Sponsor":"A dealmaker who lines up an acquisition and raises the equity deal-by-deal, without a committed fund."};
+/* ===== pipeline stage model + forecasting (spec: /docs/PIPELINE-STAGE-MODEL-SPEC.md) ===== */
+const STAGES=[
+  {k:"sourced",    label:"Sourced",    cat:"open", p:2,  sla:null},
+  {k:"researched", label:"Researched", cat:"open", p:4,  sla:21},
+  {k:"contacted",  label:"Contacted",  cat:"open", p:6,  sla:14},
+  {k:"engaged",    label:"Engaged",    cat:"open", p:10, sla:10},
+  {k:"qualified",  label:"Qualified",  cat:"open", p:15, sla:30},
+  {k:"mandated",   label:"Mandated",   cat:"open", p:40, sla:21},
+  {k:"in_market",  label:"In Market",  cat:"open", p:60, sla:60},
+  {k:"loi",        label:"Under LOI",  cat:"open", p:80, sla:21},
+  {k:"diligence",  label:"Diligence",  cat:"open", p:90, sla:45},
+  {k:"closed_won", label:"Closed-Won", cat:"won",  p:100,sla:null},
+  {k:"closed_lost",label:"Closed-Lost / Nurture", cat:"lost", p:0, sla:null}];
+const STAGE=Object.fromEntries(STAGES.map(s=>[s.k,s]));
+const OWNERS=["Joe","Sam","Unassigned"];
+function migrateStatus(e){const m={"New":(e.service_mix_confidence==="researched"?"researched":"sourced"),"Researching":"researched","Queued":"researched","Contacted":"contacted","In conversation":"engaged","Meeting set":"engaged","Engaged":"engaged","Passed":"closed_lost"};return m[e.outreach_status]||"researched";}
+function curStage(e){return e.stage||migrateStatus(e);}
+function stageSince(e){return e.stage_entered_at||e.last_touch||null;}
+function daysInStage(e){const d=stageSince(e);return d?Math.floor((Date.now()-Date.parse(d))/864e5):null;}
+function isStale(e){const st=STAGE[curStage(e)],d=daysInStage(e);return !!(st&&st.sla!=null&&d!=null&&d>st.sla);}
+const EV_BANDS=[[1.5e6,0.90,1.10],[3e6,1.00,1.30],[5e6,1.10,1.50],[10e6,1.30,1.80],[15e6,1.50,2.00],[Infinity,1.80,2.50]];
+function qualityAdj(e){const niche=((e.niche_vertical||"").trim()&&e.niche_vertical!=="Generalist");const advisory=/CAS|Advisory|Outsourced CFO/.test(e.service_mix||"");const grow=/grow|opened|acquired|merger|hiring/i.test(e.growth_signal||"");const decline=/declin|wind-?down|closed|retir/i.test(e.growth_signal||"");if(decline)return -0.2;return (niche||advisory||grow)?0.2:0;}
+function evRange(e){const r=e.revenue;if(!r)return null;const b=EV_BANDS.find(x=>r<x[0]);const q=qualityAdj(e);return [r*(b[1]+q),r*(b[2]+q)];}
+function feeRate(ev){return ev<=2e6?0.10:ev<=5e6?0.08:ev<=10e6?0.06:0.05;}
+function forecast(e){const ev=evRange(e);if(!ev)return null;const mid=(ev[0]+ev[1])/2;const fee=Math.max(mid*feeRate(mid),50000);const st=STAGE[curStage(e)]||STAGE.sourced;const p=(e.win_probability_override!=null&&e.win_probability_override!==""?+e.win_probability_override:st.p)/100;return {ev_lo:ev[0],ev_hi:ev[1],ev_mid:mid,fee,p,weighted_fee:fee*p,weighted_ev:mid*p};}
 function openSeller(firm){
   const e=view().find(x=>x.firm===firm);
   const comp=Object.fromEntries((e.score_breakdown||"").split(";").map(s=>s.trim().split(":")).filter(a=>a.length===2).map(([k,v])=>[k,+v]));
@@ -293,6 +344,13 @@ function openSeller(firm){
     <div class="touch" style="margin-top:10px">🔎 <b>Why now:</b> ${esc(e.why_now)}</div>
     <div class="sec"><h3>Seller-intent breakdown<span class="cap">Six weighted components add up to the 0–100 score. Hover a row for what it measures.</span></h3>
       ${Object.entries(comp).map(([k,v])=>{const d=COMPDEF[k]||[k,""];return `<div class="comp" title="${esc(d[1])}"><span class="lbl help">${esc(d[0])}</span><span class="track"><i style="width:${Math.round(100*v/(maxes[k]||1))}%"></i></span><span>${v}/${maxes[k]||"?"}</span></div>`;}).join("")}</div>
+    <div class="sec"><h3>Deal forecast<span class="cap">Revenue × sector multiple, × stage probability. Assumptions tunable in /docs.</span></h3>
+      ${(()=>{const f=forecast(e);return f?`<div class="kv">
+        <div>Est. enterprise value</div><div>${fmtMoney(f.ev_lo)} – ${fmtMoney(f.ev_hi)}</div>
+        <div>Manganelli fee est.</div><div>${fmtMoney(f.fee)}</div>
+        <div>Stage · probability</div><div>${STAGE[curStage(e)].label} · ${Math.round(f.p*100)}%</div>
+        <div>Weighted fee</div><div><b>${fmtMoney(f.weighted_fee)}</b></div></div>`:'<div class="muted">Revenue unknown — value not estimated.</div>';})()}
+      ${isStale(e)?`<div class="touch" style="border-color:#a55;color:#ffb454">⚠ Stale: ${daysInStage(e)} days in ${STAGE[curStage(e)].label} (SLA ${STAGE[curStage(e)].sla}d).</div>`:""}</div>
     <div class="sec"><h3>Succession / ownership</h3>
       <div class="kv"><div>Owners (${e.owner_count})</div><div>${esc(e.owners)||"—"}</div>
         <div>Concentration</div><div>${esc(e.ownership_concentration)}</div>
@@ -317,15 +375,23 @@ function openSeller(firm){
       ${chk(e,"knows_buyer_in_network","Knows a buyer in network (+4)")}${chk(e,"running_numbers_connection","Connected to Running Numbers (+3)")}
       ${chk(e,"referral_partner_connection","Vendor / referral-partner (+2)")}
       <label class="fld">Relationship source</label><input class="full" data-f="relationship_source" value="${esc(e.relationship_source)}"/></div>
-    <div class="sec"><h3>Outreach workflow</h3>
-      <label class="fld">Status</label>${sel(e,"outreach_status",["New","Researching","Queued","Contacted","In conversation","Meeting set","Passed","Engaged"])}
+    <div class="sec"><h3>Pipeline <span class="muted">(stage drives the forecast)</span></h3>
+      <label class="fld">Stage</label>
+      <select class="full" data-f="stage">${STAGES.map(s=>`<option value="${s.k}" ${curStage(e)===s.k?"selected":""}>${s.label} · ${s.p}%</option>`).join("")}</select>
+      <label class="fld">Owner</label>
+      <select class="full" data-f="owner">${OWNERS.map(o=>`<option ${(e.owner||"Unassigned")===o?"selected":""}>${o}</option>`).join("")}</select>
+      ${curStage(e)==="closed_lost"?`<label class="fld">Loss / nurture reason</label>${sel(e,"loss_reason",["","price","timing / not ready","chose another advisor","going to known buyer directly","merged elsewhere","unresponsive","other"])}`:""}
+      <label class="fld">Expected close</label><input class="full" type="date" data-f="expected_close" value="${esc(e.expected_close)}"/>
       <label class="fld">Next action</label><input class="full" data-f="next_action" value="${esc(e.next_action)}"/>
-      <label class="fld">Last touch</label><input class="full" type="date" data-f="last_touch" value="${esc(e.last_touch)}"/></div>`;
+      <label class="fld">Last touch</label><input class="full" type="date" data-f="last_touch" value="${esc(e.last_touch)}"/>
+      ${stageSince(e)?`<div class="note">In ${STAGE[curStage(e)].label} ${daysInStage(e)!=null?("· "+daysInStage(e)+"d"):""} (since ${esc(stageSince(e))}).</div>`:""}</div>`;
   drawer.classList.add("open");
   drawer.querySelectorAll("[data-f]").forEach(el=>{const f=el.dataset.f;
     const ev=(el.type==="checkbox"||el.tagName==="SELECT"||el.type==="date")?"change":"input";
-    el.addEventListener(ev,()=>{const v=el.type==="checkbox"?(el.checked?"Yes":""):el.value;saveEdit(firm,{[f]:v});render();summary();
-      if(["joey_knows","sam_knows","knows_buyer_in_network","running_numbers_connection","referral_partner_connection"].includes(f))openSeller(firm);});});
+    el.addEventListener(ev,()=>{const v=el.type==="checkbox"?(el.checked?"Yes":""):el.value;
+      const patch={[f]:v};if(f==="stage")patch.stage_entered_at=new Date().toISOString().slice(0,10);
+      saveEdit(firm,patch);render();summary();if(typeof renderForecast==="function")renderForecast();
+      if(["joey_knows","sam_knows","knows_buyer_in_network","running_numbers_connection","referral_partner_connection","stage"].includes(f))openSeller(firm);});});
 }
 function chk(e,f,label){return `<label class="chk"><input type="checkbox" data-f="${f}" ${yes(e[f])?"checked":""}/> ${label}</label>`;}
 function sel(e,f,opts){return `<select class="full" data-f="${f}">${opts.map(o=>`<option ${e[f]===o?"selected":""}>${o}</option>`).join("")}</select>`;}
@@ -414,6 +480,29 @@ function renderOverview(){
   document.getElementById("charts").innerHTML="<div style='columns:2;column-gap:36px;max-width:1100px'>"+charts+"</div>";
 }
 
+/* ================= FORECAST ================= */
+function renderForecast(){
+  const v=view().map(e=>({e,f:forecast(e),st:curStage(e)}));
+  const open=v.filter(x=>STAGE[x.st].cat==="open");
+  const wsum=arr=>arr.reduce((a,x)=>a+(x.f?x.f.weighted_fee:0),0);
+  const gsum=arr=>arr.reduce((a,x)=>a+(x.f?x.f.fee:0),0);
+  const mIdx=STAGES.findIndex(s=>s.k==="mandated");
+  const mandated=open.filter(x=>STAGES.findIndex(s=>s.k===x.st)>=mIdx);
+  const won=v.filter(x=>x.st==="closed_won");
+  document.getElementById("fcards").innerHTML=[
+    [fmtMoney(gsum(open)),"gross pipeline"],[fmtMoney(wsum(open)),"weighted pipeline"],
+    [mandated.length,"mandated +"],[fmtMoney(wsum(mandated)),"weighted · mandated+"],[fmtMoney(gsum(won)),"won fees"]]
+    .map(c=>`<div class="card"><b>${c[0]}</b><span>${c[1]}</span></div>`).join("");
+  const byStage=STAGES.filter(s=>s.cat!=="lost").map(s=>{const a=v.filter(x=>x.st===s.k);return {s,n:a.length,g:gsum(a),w:wsum(a)};});
+  const stageTbl=`<table><thead><tr><th>Stage</th><th>Prob</th><th>Firms</th><th>Gross fees</th><th>Weighted</th></tr></thead><tbody>${byStage.map(r=>`<tr><td>${r.s.label}</td><td class="muted">${r.s.p}%</td><td>${r.n}</td><td class="muted">${fmtMoney(r.g)}</td><td><b>${fmtMoney(r.w)}</b></td></tr>`).join("")}</tbody></table>`;
+  const owners=[...new Set(v.map(x=>x.e.owner||"Unassigned"))];
+  const ownerTbl=`<table><thead><tr><th>Owner</th><th>Open firms</th><th>Weighted pipeline</th></tr></thead><tbody>${owners.map(o=>{const a=open.filter(x=>(x.e.owner||"Unassigned")===o);return `<tr><td>${esc(o)}</td><td>${a.length}</td><td><b>${fmtMoney(wsum(a))}</b></td></tr>`;}).join("")}</tbody></table>`;
+  const stale=open.filter(x=>isStale(x.e)).sort((a,b)=>daysInStage(b.e)-daysInStage(a.e));
+  const staleTbl=stale.length?`<table><thead><tr><th>Firm</th><th>Stage</th><th>Days in stage</th><th>Owner</th><th>Weighted</th></tr></thead><tbody>${stale.map(x=>`<tr class="stalerow" data-firm="${esc(x.e.firm)}"><td class="firm">${esc(x.e.firm)}</td><td>${STAGE[x.st].label} <span class="stale">⚠</span></td><td>${daysInStage(x.e)}d</td><td class="muted">${esc(x.e.owner||"Unassigned")}</td><td>${x.f?fmtMoney(x.f.weighted_fee):"—"}</td></tr>`).join("")}</tbody></table>`:'<div class="muted" style="margin:0 22px">Nothing stale — every open opportunity is within its stage SLA.</div>';
+  document.getElementById("fcontent").innerHTML=`<h3 class="fch">Pipeline by stage</h3>${stageTbl}<h3 class="fch">By owner</h3>${ownerTbl}<h3 class="fch">Stale &amp; needs attention (${stale.length})</h3>${staleTbl}`;
+  document.querySelectorAll("#fcontent .stalerow").forEach(tr=>tr.onclick=()=>{document.querySelector('.tab[data-tab="supply"]').click();openSeller(tr.dataset.firm);});
+}
+
 /* ---------------- init ---------------- */
 (function(){
   // supply filters
@@ -421,9 +510,11 @@ function renderOverview(){
   document.getElementById("fState").innerHTML+=states.map(s=>`<option>${s}</option>`).join("");
   const svcs=[...new Set(SELLERS.flatMap(e=>(e.service_mix||"").split(" / ")).filter(Boolean))].sort();
   document.getElementById("fSvc").innerHTML+=svcs.map(s=>`<option>${s}</option>`).join("");
+  document.getElementById("fOwner").innerHTML+=OWNERS.map(o=>`<option>${o}</option>`).join("");
   ["q","fWave","fBand","fSucc","fState","fSvc"].forEach(id=>document.getElementById(id).addEventListener("input",()=>{if(id==="q")q=val("q");render();summary();}));
   document.getElementById("fWarm").addEventListener("change",render);
-  document.getElementById("reset").onclick=()=>{queueMode=false;["q","fWave","fBand","fSucc","fState","fSvc"].forEach(id=>document.getElementById(id).value="");document.getElementById("fWarm").checked=false;q="";render();summary();};
+  document.getElementById("fOwner").addEventListener("change",()=>{render();summary();renderForecast();});
+  document.getElementById("reset").onclick=()=>{queueMode=false;["q","fWave","fBand","fSucc","fState","fSvc","fOwner"].forEach(id=>document.getElementById(id).value="");document.getElementById("fWarm").checked=false;q="";render();summary();};
   document.getElementById("queue").onclick=()=>{queueMode=true;["fBand","fSucc","fState","fSvc"].forEach(id=>document.getElementById(id).value="");document.getElementById("q").value="";document.getElementById("fWarm").checked=false;document.getElementById("fWave").value="1";q="";sortKey="live_intent";sortDir=-1;document.querySelector('.tab[data-tab="supply"]').click();render();};
   document.getElementById("export").onclick=exportCSV;
   // buyer filters
@@ -431,7 +522,7 @@ function renderOverview(){
   document.getElementById("bType").innerHTML+=btypes.map(t=>`<option>${t}</option>`).join("");
   document.getElementById("bq").addEventListener("input",()=>{bq=val("bq");brender();});
   document.getElementById("bType").addEventListener("change",brender);
-  render();summary();brender();bsummary();renderOverview();
+  render();summary();brender();bsummary();renderOverview();renderForecast();
 })();
 </script>
 </body>

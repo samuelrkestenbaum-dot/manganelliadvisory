@@ -150,9 +150,10 @@ pass pays off** — researched service mix and niche feed the multiple, not just
 display. Store the EV as a **range** (`est_ev_low`, `est_ev_high`) and forecast off the
 **midpoint**.
 
-> Worked example — ADKF, P.C. (#345), revenue $10.0M, strong multi-industry niche:
-> base band `$5–10M` = 1.30–1.80×, +0.20× quality → 1.50–2.00× → **EV ≈ $15.0M–$20.0M,
-> midpoint $17.5M.**
+> Worked example — ADKF, P.C. (#345), revenue $10.0M, strong multi-industry niche.
+> Bands are **lower-inclusive / upper-exclusive**, so $10.0M sits at the bottom of the
+> `$10–15M` band = 1.50–2.00×; +0.20× quality → 1.70–2.20× → **EV ≈ $17.0M–$22.0M,
+> midpoint $19.5M.**
 
 ### 2b. Manganelli fee estimate
 
@@ -170,7 +171,7 @@ schedule with a floor, the usual shape for sub-$15M deals):
 post-close-integration engagements (the other Manganelli service lines) can be added
 later as separate fee rows; the forecast below uses the sell-side success fee.
 
-> ADKF example: EV midpoint $17.5M → 5% → **fee ≈ $875k.**
+> ADKF example: EV midpoint $19.5M → 5% → **fee ≈ $975k.**
 
 ### 2c. Win probability
 
@@ -195,8 +196,8 @@ Management roll-ups (all computed over **Open** opportunities only, unless noted
   end (needs the optional `expected_close` field).
 - **Won YTD** — Σ actual fee where `stage = closed_won`.
 
-> ADKF example, at `qualified` (p = 15%): weighted_fee = $875k × 0.15 = **$131k**.
-> If it converts to `mandated` (p = 40%) the same deal jumps to **$350k weighted** —
+> ADKF example, at `qualified` (p = 15%): weighted_fee = $975k × 0.15 = **$146k**.
+> If it converts to `mandated` (p = 40%) the same deal jumps to **$390k weighted** —
 > which is exactly the Qualified→Mandated conversion leadership should be pushing.
 
 ---
