@@ -3,7 +3,7 @@
 **Link:** https://fascinating-jelly-7ea629.netlify.app
 (Bookmark it. Works in any browser, nothing to install, no login.)
 
-This is our 442-firm off-market list turned into a "who do we call first, and why"
+This is our 441-firm off-market list turned into a "who do we call first, and why"
 tool, with the buyer side attached so every target comes with "who would acquire
 this." Here's the 2-minute version.
 
@@ -13,14 +13,14 @@ this." Here's the 2-minute version.
 - **Overview** — the lay of the land. Charts for how many firms are high-intent,
   how many owners are retiring/late-career, revenue bands, top states, buyer
   coverage. Skim it once to see the shape of the book.
-- **Supply** — the call list. All 442 firms ranked by **seller-intent score**.
+- **Supply** — the call list. All 441 firms ranked by **seller-intent score**.
   This is where you'll live.
 - **Buyers** — our 60 buyers, each with the sellers they best fit.
 - **Method** — how the score is built, if you ever want to see the math.
 
 ## Your daily routine (do this)
 1. Open **Supply**.
-2. Click the **🔥 Call-queue** button. That instantly filters to the firms worth
+2. Click the **Call queue** button. That instantly filters to the firms worth
    calling *today*: high/medium intent, we have an email, not yet contacted,
    sorted best-first.
 3. Work down the list. Click any firm to open its detail panel.
@@ -54,8 +54,7 @@ ready to sell, based mostly on succession/retirement signals and owner age/tenur
 It's a priority cue, not a verdict — your read of the conversation always wins.
 
 ## Honest caveats (so you trust it correctly)
-- **Service mix & industry niche** are now web-researched for all 441 real firms
-  (the lone exception is a placeholder test row). Each researched firm shows its
+- **Service mix & industry niche** are web-researched for all 441 firms. Each shows its
   actual services, industry specialization, office count, and managing partner,
   pulled from the firm's own website. A handful carry a short "verify" note where
   the source data's location or owner name didn't match the live website — read
@@ -69,9 +68,9 @@ It's a priority cue, not a verdict — your read of the conversation always wins
   ready; just say the word.
 
 ## The headline numbers (today)
-442 firms · 45 High / 132 Medium intent · 100 retiring-owner signals · 201
+441 firms · 45 High / 132 Medium intent · 100 retiring-owner signals · 201
 late-career owners · 3 already for sale · 363 emailable now · 79 need a contact
-first · 60 buyers, all matched. **Service-mix + niche now web-researched on all
+first · 60 buyers, 34 with strong-fit matches. **Service-mix + niche web-researched on all
 441 real firms** (e.g. PBC Advisors and McGovern = healthcare-only; Strohm Ballweg
 = insurance-only; Plodzik & Sanderson = NH municipal audits; Friedman Kannenberg =
 music industry). One firm — #116, "West of Nashville" — turned out to be an active,
