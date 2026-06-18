@@ -79,6 +79,11 @@
   .fch{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut);margin:22px 22px 6px}
   #page-forecast table{width:calc(100% - 44px);margin:0 22px 8px}
   #fcontent .stalerow:hover{background:#241c1c}
+  .pair{padding:7px 0;border-bottom:1px solid #20262e}
+  .pair .pname{font-weight:600} .pair .pstat{margin-top:5px}
+  .pstat{font-size:12px;padding:3px 6px;max-width:210px}
+  .logform{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap} .logform .grow{flex:1;min-width:130px}
+  .actlog{max-height:240px;overflow:auto} .actrow{padding:6px 0;border-bottom:1px solid #20262e;font-size:12.5px}
 </style>
 </head>
 <body>
@@ -140,9 +145,10 @@
 <!-- ============ BUYERS ============ -->
 <section class="page" id="page-buyers">
   <div class="intro">
-    <b>The demand side.</b> 60 acquirers we can take sellers to. <b>Matched sellers</b> is the count of off-market firms
-    whose size, geography, and service mix fit that buyer's stated mandate — a fit signal to frame
-    <em>"we may already have a home for you,"</em> not a recomputed score. <b>Click a buyer</b> for its thesis, target size, and top-fit sellers.
+    <b>The demand side.</b> 60 acquirers we can take sellers to. <b>Matched sellers</b> is now a real, deduped count —
+    the off-market firms whose size, geography, and service mix fit that buyer (derived from each firm's top buyers),
+    replacing the old flat "everyone." <b>Click a buyer</b> to read its thesis and <b>track each approach</b>
+    (Approached → Interested → LOI) — a demand pipeline that mirrors the supply side.
     <p><b>The buyer types, in plain terms:</b></p>
     <dl class="deflist">
       <dt>PE-Backed Consolidator</dt><dd>A platform already owned by private equity, actively rolling up smaller firms for scale. The most aggressive acquirers — move fast, pay up for size.</dd>
@@ -284,7 +290,7 @@ function render(){
     <td class="muted">${esc(e.service_mix)}</td><td>${esc(e.state)}</td>
     <td>${esc(e.contact_person)||'<span class="muted">—</span>'}</td>
     <td class="muted">${esc(e.email_confidence)||"—"}</td><td>${e.wave}</td>
-    <td>${esc(STAGE[curStage(e)].label)}${isStale(e)?` <span class="stale" title="In stage ${daysInStage(e)}d — past SLA">⚠</span>`:""}</td>
+    <td>${esc(STAGE[curStage(e)].label)}${isStale(e)?` <span class="stale" title="Quiet ${daysSinceTouch(e)}d — past stage SLA">⚠</span>`:""}</td>
     <td class="muted">${(()=>{const f=forecast(e);return f?fmtMoney(f.weighted_fee):"—";})()}</td></tr>`).join("");
   document.querySelectorAll("#body tr").forEach(tr=>tr.onclick=()=>openSeller(tr.dataset.firm));
 }
@@ -322,12 +328,23 @@ function migrateStatus(e){const m={"New":(e.service_mix_confidence==="researched
 function curStage(e){return e.stage||migrateStatus(e);}
 function stageSince(e){return e.stage_entered_at||e.last_touch||null;}
 function daysInStage(e){const d=stageSince(e);return d?Math.floor((Date.now()-Date.parse(d))/864e5):null;}
-function isStale(e){const st=STAGE[curStage(e)],d=daysInStage(e);return !!(st&&st.sla!=null&&d!=null&&d>st.sla);}
+function activityOf(e){return (e.activity||[]).slice();}
+function lastActivityTs(e){const a=e.activity||[];return a.length?a[a.length-1].ts:(e.stage_entered_at||e.last_touch||null);}
+function daysSinceTouch(e){const t=lastActivityTs(e);return t?Math.floor((Date.now()-Date.parse(t))/864e5):null;}
+function logTouch(firm,entry){const a=((edits[firm]&&edits[firm].activity)||[]).slice();a.push(entry);saveEdit(firm,{activity:a,last_touch:entry.ts.slice(0,10)});}
+function fmtTs(ts){try{return new Date(ts).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}catch(_){return ts;}}
+function isStale(e){const st=STAGE[curStage(e)],d=daysSinceTouch(e);return !!(st&&st.sla!=null&&d!=null&&d>st.sla);}
 const EV_BANDS=[[1.5e6,0.90,1.10],[3e6,1.00,1.30],[5e6,1.10,1.50],[10e6,1.30,1.80],[15e6,1.50,2.00],[Infinity,1.80,2.50]];
 function qualityAdj(e){const niche=((e.niche_vertical||"").trim()&&e.niche_vertical!=="Generalist");const advisory=/CAS|Advisory|Outsourced CFO/.test(e.service_mix||"");const grow=/grow|opened|acquired|merger|hiring/i.test(e.growth_signal||"");const decline=/declin|wind-?down|closed|retir/i.test(e.growth_signal||"");if(decline)return -0.2;return (niche||advisory||grow)?0.2:0;}
 function evRange(e){const r=e.revenue;if(!r)return null;const b=EV_BANDS.find(x=>r<x[0]);const q=qualityAdj(e);return [r*(b[1]+q),r*(b[2]+q)];}
 function feeRate(ev){return ev<=2e6?0.10:ev<=5e6?0.08:ev<=10e6?0.06:0.05;}
 function forecast(e){const ev=evRange(e);if(!ev)return null;const mid=(ev[0]+ev[1])/2;const fee=Math.max(mid*feeRate(mid),50000);const st=STAGE[curStage(e)]||STAGE.sourced;const p=(e.win_probability_override!=null&&e.win_probability_override!==""?+e.win_probability_override:st.p)/100;return {ev_lo:ev[0],ev_hi:ev[1],ev_mid:mid,fee,p,weighted_fee:fee*p,weighted_ev:mid*p};}
+/* ===== real seller<->buyer matching (slice: demand pipeline) ===== */
+const PAIR_STATES=["","Approached","Interested","Passed","LOI"];
+function buildMatches(){const inv={};SELLERS.forEach(s=>{(s.cbuyers||[]).forEach(c=>{(inv[c.name]=inv[c.name]||[]).push({firm:s.firm,score:c.score,why:c.why,state:s.state,revenue:s.revenue});});});BUYERS.forEach(b=>{const m=(inv[b.name]||[]).sort((x,y)=>y.score-x.score);b.real_matched=m;b.matched_count=m.length;});}
+function pairStatus(firm,buyer){const p=edits[firm]&&edits[firm].pairs;return (p&&p[buyer])||"";}
+function setPair(firm,buyer,status){const p=Object.assign({},(edits[firm]&&edits[firm].pairs)||{});if(status)p[buyer]=status;else delete p[buyer];saveEdit(firm,{pairs:p});}
+function demandRollup(b){const c={Approached:0,Interested:0,Passed:0,LOI:0};(b.real_matched||[]).forEach(m=>{const s=pairStatus(m.firm,b.name);if(c[s]!=null)c[s]++;});const parts=Object.entries(c).filter(e=>e[1]>0).map(e=>`<span class="tag">${e[0]} ${e[1]}</span>`);return parts.length?`<div style="margin:4px 0 8px">${parts.join("")}</div>`:'<div class="note">No outreach logged to these buyers yet.</div>';}
 function openSeller(firm){
   const e=view().find(x=>x.firm===firm);
   const comp=Object.fromEntries((e.score_breakdown||"").split(";").map(s=>s.trim().split(":")).filter(a=>a.length===2).map(([k,v])=>[k,+v]));
@@ -350,7 +367,7 @@ function openSeller(firm){
         <div>Manganelli fee est.</div><div>${fmtMoney(f.fee)}</div>
         <div>Stage · probability</div><div>${STAGE[curStage(e)].label} · ${Math.round(f.p*100)}%</div>
         <div>Weighted fee</div><div><b>${fmtMoney(f.weighted_fee)}</b></div></div>`:'<div class="muted">Revenue unknown — value not estimated.</div>';})()}
-      ${isStale(e)?`<div class="touch" style="border-color:#a55;color:#ffb454">⚠ Stale: ${daysInStage(e)} days in ${STAGE[curStage(e)].label} (SLA ${STAGE[curStage(e)].sla}d).</div>`:""}</div>
+      ${isStale(e)?`<div class="touch" style="border-color:#a55;color:#ffb454">⚠ Stale: ${daysSinceTouch(e)} days since last touch in ${STAGE[curStage(e)].label} (SLA ${STAGE[curStage(e)].sla}d).</div>`:""}</div>
     <div class="sec"><h3>Succession / ownership</h3>
       <div class="kv"><div>Owners (${e.owner_count})</div><div>${esc(e.owners)||"—"}</div>
         <div>Concentration</div><div>${esc(e.ownership_concentration)}</div>
@@ -360,8 +377,8 @@ function openSeller(firm){
         <div>Owner age est.</div><div>${e.owner_age_estimate||"—"}</div><div>Max tenure</div><div>${e.max_tenure_years?e.max_tenure_years+" yrs":"—"}</div>
         ${e.niche_vertical?`<div>Niche vertical</div><div>${esc(e.niche_vertical)}</div>`:""}</div>
       <div class="touch">${esc(e.succession_signal)||"No narrative signal captured."}</div></div>
-    <div class="sec"><h3>Buyer fit</h3>${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")||'<span class="muted">—</span>'}
-      ${(e.cbuyers||[]).length?`<div class="note">Top matched buyers (computed fit):</div>${e.cbuyers.map(b=>`<div class="tag">${esc(b.name)} · ${b.score}${b.type?(" · "+esc(b.type)):""}${b.why?(" — "+esc(b.why)):""}</div>`).join("")}`:'<div class="note">No strong buyer match under current criteria.</div>'}</div>
+    <div class="sec"><h3>Buyer fit &amp; outreach<span class="cap">Each fit buyer is a trackable approach — set its status as you work it.</span></h3>${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}
+      ${(e.cbuyers||[]).length?e.cbuyers.map(c=>`<div class="pair"><span class="pname">${esc(c.name)}</span> <span class="muted">fit ${c.score}${c.type?(" · "+esc(c.type)):""}</span>${c.why?`<div class="muted" style="font-size:11.5px">${esc(c.why)}</div>`:""}<select class="pstat" data-buyer="${esc(c.name)}">${PAIR_STATES.map(o=>`<option value="${o}" ${pairStatus(e.firm,c.name)===o?"selected":""}>${o||"— not started"}</option>`).join("")}</select></div>`).join(""):'<div class="note">No strong buyer match under current criteria.</div>'}</div>
     <div class="sec"><h3>Contact &amp; first touch</h3>
       <div class="kv"><div>Best contact</div><div>${esc(e.contact_person)||"—"}</div>
         <div>Email</div><div>${esc(e.best_email)||"—"} <span class="muted">(${esc(e.email_confidence)||"none"})</span></div>
@@ -384,14 +401,24 @@ function openSeller(firm){
       <label class="fld">Expected close</label><input class="full" type="date" data-f="expected_close" value="${esc(e.expected_close)}"/>
       <label class="fld">Next action</label><input class="full" data-f="next_action" value="${esc(e.next_action)}"/>
       <label class="fld">Last touch</label><input class="full" type="date" data-f="last_touch" value="${esc(e.last_touch)}"/>
-      ${stageSince(e)?`<div class="note">In ${STAGE[curStage(e)].label} ${daysInStage(e)!=null?("· "+daysInStage(e)+"d"):""} (since ${esc(stageSince(e))}).</div>`:""}</div>`;
+      ${stageSince(e)?`<div class="note">In ${STAGE[curStage(e)].label} ${daysInStage(e)!=null?("· "+daysInStage(e)+"d"):""} (since ${esc(stageSince(e))}).</div>`:""}</div>
+    <div class="sec"><h3>Activity <span class="muted">${daysSinceTouch(e)!=null?("· "+daysSinceTouch(e)+"d since last touch"):"· no touches logged"}</span></h3>
+      <div class="logform">
+        <select id="lgWho">${["Joe","Sam"].map(o=>`<option ${e.owner===o?"selected":""}>${o}</option>`).join("")}</select>
+        <select id="lgCh">${["Call","Email","Meeting","LinkedIn","Note"].map(o=>`<option>${o}</option>`).join("")}</select>
+        <input id="lgNote" class="grow" placeholder="What happened…"/>
+        <button id="lgBtn">Log</button></div>
+      <div class="actlog">${activityOf(e).slice().reverse().map(x=>`<div class="actrow"><span class="muted">${fmtTs(x.ts)}</span> · <b>${esc(x.who)}</b> <span class="tag">${esc(x.channel)}</span> ${esc(x.note)}</div>`).join("")||'<div class="muted">No activity yet — log the first touch above.</div>'}</div></div>`;
   drawer.classList.add("open");
   drawer.querySelectorAll("[data-f]").forEach(el=>{const f=el.dataset.f;
     const ev=(el.type==="checkbox"||el.tagName==="SELECT"||el.type==="date")?"change":"input";
     el.addEventListener(ev,()=>{const v=el.type==="checkbox"?(el.checked?"Yes":""):el.value;
-      const patch={[f]:v};if(f==="stage")patch.stage_entered_at=new Date().toISOString().slice(0,10);
+      const patch={[f]:v};
+      if(f==="stage"){patch.stage_entered_at=new Date().toISOString().slice(0,10);const a=activityOf(e);a.push({ts:new Date().toISOString(),who:e.owner||"—",channel:"Stage",note:"Moved to "+STAGE[v].label});patch.activity=a;}
       saveEdit(firm,patch);render();summary();if(typeof renderForecast==="function")renderForecast();
       if(["joey_knows","sam_knows","knows_buyer_in_network","running_numbers_connection","referral_partner_connection","stage"].includes(f))openSeller(firm);});});
+  drawer.querySelectorAll(".pstat").forEach(sl=>sl.addEventListener("change",()=>{setPair(firm,sl.dataset.buyer,sl.value);}));
+  const lg=drawer.querySelector("#lgBtn");if(lg)lg.onclick=()=>{const note=(drawer.querySelector("#lgNote").value||"").trim();if(!note)return;logTouch(firm,{ts:new Date().toISOString(),who:drawer.querySelector("#lgWho").value,channel:drawer.querySelector("#lgCh").value,note});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
 }
 function chk(e,f,label){return `<label class="chk"><input type="checkbox" data-f="${f}" ${yes(e[f])?"checked":""}/> ${label}</label>`;}
 function sel(e,f,opts){return `<select class="full" data-f="${f}">${opts.map(o=>`<option ${e[f]===o?"selected":""}>${o}</option>`).join("")}</select>`;}
@@ -437,8 +464,12 @@ function openBuyer(id){const b=BUYERS.find(x=>x.id===id);
     ${b.recent_deals?`<div class="sec"><h3>Recent deals</h3><div class="muted">${esc(b.recent_deals)}</div></div>`:""}
     <div class="sec"><h3>Contact</h3><div class="kv"><div>Name</div><div>${esc(b.contact)||"—"}</div><div>Title</div><div>${esc(b.contact_title)||"—"}</div>
       <div>Website</div><div>${b.website?`<a href="https://${esc(b.website)}" target="_blank">${esc(b.website)}</a>`:"—"}</div></div></div>
-    <div class="sec"><h3>Top matched sellers</h3>${(b.matched||[]).length?(b.matched.map(m=>`<div class="tag">${esc(m.name)} · fit ${m.score}${m.intent?(" · intent "+m.intent):""}${m.why?(" — "+esc(m.why)):""}</div>`).join("")):'<span class="muted">No matches.</span>'}</div>`;
+    <div class="sec"><h3>Demand pipeline <span class="muted">(${b.matched_count||0} fit sellers)</span></h3>
+      ${demandRollup(b)}
+      ${(b.real_matched||[]).slice(0,15).map(m=>`<div class="pair"><span class="pname">${esc(m.firm)}</span> <span class="muted">fit ${m.score}${m.state?(" · "+esc(m.state)):""} · ${fmtMoney(m.revenue)}</span><select class="pstat" data-firm="${esc(m.firm)}" data-buyer="${esc(b.name)}">${PAIR_STATES.map(o=>`<option value="${o}" ${pairStatus(m.firm,b.name)===o?"selected":""}>${o||"— not started"}</option>`).join("")}</select></div>`).join("")||'<span class="muted">No fit sellers — this buyer matched none of the 442 under current criteria.</span>'}
+      ${(b.real_matched||[]).length>15?`<div class="note">Showing top 15 of ${b.matched_count}.</div>`:""}</div>`;
   drawer.classList.add("open");
+  drawer.querySelectorAll(".pstat").forEach(sl=>sl.addEventListener("change",()=>{setPair(sl.dataset.firm,sl.dataset.buyer,sl.value);openBuyer(b.id);brender();}));
 }
 function bsummary(){const t=BUYERS.length;const matched=BUYERS.filter(b=>(b.matched_count||0)>0).length;
   const types=new Set(BUYERS.map(b=>b.type)).size;
@@ -497,8 +528,8 @@ function renderForecast(){
   const stageTbl=`<table><thead><tr><th>Stage</th><th>Prob</th><th>Firms</th><th>Gross fees</th><th>Weighted</th></tr></thead><tbody>${byStage.map(r=>`<tr><td>${r.s.label}</td><td class="muted">${r.s.p}%</td><td>${r.n}</td><td class="muted">${fmtMoney(r.g)}</td><td><b>${fmtMoney(r.w)}</b></td></tr>`).join("")}</tbody></table>`;
   const owners=[...new Set(v.map(x=>x.e.owner||"Unassigned"))];
   const ownerTbl=`<table><thead><tr><th>Owner</th><th>Open firms</th><th>Weighted pipeline</th></tr></thead><tbody>${owners.map(o=>{const a=open.filter(x=>(x.e.owner||"Unassigned")===o);return `<tr><td>${esc(o)}</td><td>${a.length}</td><td><b>${fmtMoney(wsum(a))}</b></td></tr>`;}).join("")}</tbody></table>`;
-  const stale=open.filter(x=>isStale(x.e)).sort((a,b)=>daysInStage(b.e)-daysInStage(a.e));
-  const staleTbl=stale.length?`<table><thead><tr><th>Firm</th><th>Stage</th><th>Days in stage</th><th>Owner</th><th>Weighted</th></tr></thead><tbody>${stale.map(x=>`<tr class="stalerow" data-firm="${esc(x.e.firm)}"><td class="firm">${esc(x.e.firm)}</td><td>${STAGE[x.st].label} <span class="stale">⚠</span></td><td>${daysInStage(x.e)}d</td><td class="muted">${esc(x.e.owner||"Unassigned")}</td><td>${x.f?fmtMoney(x.f.weighted_fee):"—"}</td></tr>`).join("")}</tbody></table>`:'<div class="muted" style="margin:0 22px">Nothing stale — every open opportunity is within its stage SLA.</div>';
+  const stale=open.filter(x=>isStale(x.e)).sort((a,b)=>daysSinceTouch(b.e)-daysSinceTouch(a.e));
+  const staleTbl=stale.length?`<table><thead><tr><th>Firm</th><th>Stage</th><th>Days quiet</th><th>Owner</th><th>Weighted</th></tr></thead><tbody>${stale.map(x=>`<tr class="stalerow" data-firm="${esc(x.e.firm)}"><td class="firm">${esc(x.e.firm)}</td><td>${STAGE[x.st].label} <span class="stale">⚠</span></td><td>${daysSinceTouch(x.e)}d</td><td class="muted">${esc(x.e.owner||"Unassigned")}</td><td>${x.f?fmtMoney(x.f.weighted_fee):"—"}</td></tr>`).join("")}</tbody></table>`:'<div class="muted" style="margin:0 22px">Nothing stale — every open opportunity is within its stage SLA.</div>';
   document.getElementById("fcontent").innerHTML=`<h3 class="fch">Pipeline by stage</h3>${stageTbl}<h3 class="fch">By owner</h3>${ownerTbl}<h3 class="fch">Stale &amp; needs attention (${stale.length})</h3>${staleTbl}`;
   document.querySelectorAll("#fcontent .stalerow").forEach(tr=>tr.onclick=()=>{document.querySelector('.tab[data-tab="supply"]').click();openSeller(tr.dataset.firm);});
 }
@@ -522,7 +553,7 @@ function renderForecast(){
   document.getElementById("bType").innerHTML+=btypes.map(t=>`<option>${t}</option>`).join("");
   document.getElementById("bq").addEventListener("input",()=>{bq=val("bq");brender();});
   document.getElementById("bType").addEventListener("change",brender);
-  render();summary();brender();bsummary();renderOverview();renderForecast();
+  buildMatches();render();summary();brender();bsummary();renderOverview();renderForecast();
 })();
 </script>
 </body>
