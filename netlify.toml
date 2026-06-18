@@ -1,0 +1,5 @@
+# Netlify continuous-deployment config for Manganelli Advisory dashboard.
+# The dashboard is a single self-contained static file; no build step.
+[build]
+  publish = "netlify-deploy"
+  command = ""
