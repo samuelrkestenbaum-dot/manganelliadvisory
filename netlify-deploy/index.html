@@ -332,9 +332,18 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
 function warmPts(e){let p=0;if(yes(e.joey_knows))p+=5;if(yes(e.sam_knows))p+=4;
   if(yes(e.running_numbers_connection))p+=3;if(yes(e.knows_buyer_in_network))p+=4;
   if(yes(e.referral_partner_connection))p+=2;return Math.min(10,p);}
+function liveComp(e){
+  const c={};(e.score_breakdown||"").split(";").forEach(p=>{p=p.trim();const i=p.indexOf(":");if(i>0)c[p.slice(0,i).trim()]=+p.slice(i+1);});
+  const eq=emailQuality(e); // recompute contactability honestly — a shared inbox is not a direct line
+  c.contactability=eq.direct?10:((eq.label==="shared inbox"||e.email_confidence==="medium")?6:2);
+  const niche=((e.niche_vertical||"").trim()&&e.niche_vertical!=="Generalist"), adv=/CAS|Advisory|Outsourced CFO/.test(e.service_mix||"");
+  c.revenue_fit=Math.min(15,(c.revenue_fit||0)+(((niche||adv)&&e.service_mix_confidence==="researched")?1:0));
+  c.warm_path=warmPts(e);
+  return c;
+}
 function view(){return SELLERS.map(d=>{const e=Object.assign({},d,edits[d.firm]||{});
-  const base=e.seller_intent_score-(d.warm_path_points||0);const wp=warmPts(e);
-  e.warm_path_points=wp;e.live_intent=Math.min(100,base+wp);
+  const c=liveComp(e);e.live_comp=c;e.warm_path_points=c.warm_path;
+  e.live_intent=Math.min(100,(c.succession||0)+(c.age_tenure||0)+(c.ownership||0)+(c.revenue_fit||0)+(c.contactability||0)+(c.warm_path||0));
   e.live_band=e.live_intent>=70?"High":e.live_intent>=50?"Medium":"Low";return e;});}
 function saveEdit(firm,patch){edits[firm]=Object.assign({},edits[firm]||{},patch);localStorage.setItem(LS,JSON.stringify(edits));sbSave(firm);}
 const COLS=[["priority_rank","#","Priority rank in the book."],["firm","Firm",""],
@@ -507,7 +516,7 @@ function buyerHeadline(b){
 }
 function openSeller(firm){
   const e=view().find(x=>x.firm===firm);
-  const comp=Object.fromEntries((e.score_breakdown||"").split(";").map(s=>s.trim().split(":")).filter(a=>a.length===2).map(([k,v])=>[k,+v]));
+  const comp=e.live_comp||{};
   comp.warm_path=e.warm_path_points;
   const maxes={succession:35,age_tenure:25,ownership:15,revenue_fit:15,contactability:10,warm_path:10};
   const buyers=(e.top_matched_buyers||"").split("|").map(s=>s.trim()).filter(Boolean);
@@ -519,7 +528,7 @@ function openSeller(firm){
     <div style="margin-top:10px"><span class="pill b-${e.live_band}" title="Likely-to-sell score, 0–100">Intent ${e.live_intent} · ${e.live_band}</span>
       <span class="pill b-${e.succession_strength}" style="margin-left:6px" title="Strength of retirement / no-successor signals">Succession ${e.succession_strength}</span>
       <span class="tag">Wave ${e.wave}</span><span class="tag">Rank #${e.priority_rank}</span></div>
-    <details class="how"><summary>How this 0–100 is built</summary>Succession pressure (max 35) + owner age &amp; tenure (25) + ownership concentration (15) + revenue fit (15) + contactability (10) + warm path (10). High ≥ 70 · Medium 50–69 · Low &lt; 50.</details>
+    <details class="how"><summary>How this 0–100 is built</summary>Succession pressure (max 35) + owner age &amp; tenure (25) + ownership concentration (15) + revenue fit (15) + contactability (10) + warm path (10). High ≥ 70 · Medium 50–69 · Low &lt; 50. Recomputed live from current facts and your edits — e.g. a shared inbox scores contactability below a verified direct line, and a warm path adds points instantly.</details>
     ${confidenceBadges(e)}
     <div class="brief">${narrative(e)}</div>
     <div class="touch" style="margin-top:10px"><b>Why now:</b> ${esc(e.why_now)}</div>
