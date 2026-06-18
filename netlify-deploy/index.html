@@ -54,7 +54,7 @@
   .sec{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
   .sec h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut)}
   .comp{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px}
-  .comp .lbl{width:120px;color:var(--mut)} .comp .track{flex:1;height:8px;background:#2a313b;border-radius:4px;overflow:hidden}
+  .comp .lbl{width:152px;color:var(--mut)} .comp .track{flex:1;height:8px;background:#2a313b;border-radius:4px;overflow:hidden}
   .comp .track>i{display:block;height:100%;background:var(--acc)}
   .touch{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px;color:#dfe7ef}
   label.fld{display:block;margin:8px 0 3px;color:var(--mut);font-size:12px}
@@ -66,6 +66,15 @@
   .prose{max-width:820px;padding:22px}
   .prose h2{font-size:16px;margin:18px 0 6px} .prose p,.prose li{color:#cdd6e0;font-size:13.5px}
   .legend b{color:var(--ink)}
+  .intro{max-width:1120px;margin:14px 22px 2px;background:var(--panel2);border:1px solid var(--line);
+         border-left:3px solid var(--acc);border-radius:10px;padding:13px 16px;font-size:13px;color:#cdd6e0}
+  .intro b{color:var(--ink)} .intro .hl{color:var(--good);font-weight:600}
+  .intro p{margin:7px 0 0}
+  .deflist{display:grid;grid-template-columns:max-content 1fr;gap:5px 14px;margin:9px 0 1px;font-size:12.5px}
+  .deflist dt{color:var(--ink);font-weight:600;white-space:nowrap}
+  .deflist dd{color:var(--mut);margin:0}
+  .help{cursor:help;border-bottom:1px dotted var(--mut)}
+  .sec h3 .cap{display:block;margin-top:3px;font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -82,12 +91,31 @@
 
 <!-- ============ OVERVIEW ============ -->
 <section class="page active" id="page-overview">
-  <div style="padding:18px 22px 0"><div class="cards" id="ovcards"></div></div>
+  <div class="intro">
+    <b>What you're looking at.</b> The whole book at a glance — 442 off-market accounting firms scored for how
+    likely each owner is to sell, plus the 60 buyers we'd take them to. <span id="ovhead" class="hl"></span>
+    <p><b>Reading the charts:</b></p>
+    <dl class="deflist">
+      <dt>Seller-intent band</dt><dd>Our 0–100 readiness score, bucketed: High ≥ 70 · Medium 50–69 · Low &lt; 50. Higher = more likely ready to sell.</dd>
+      <dt>Succession strength</dt><dd>How strong the retirement / no-successor signal is for the firm — the biggest driver of the score.</dd>
+      <dt>Owner career stage</dt><dd>Where the owner is in their working life. Late-career owners are the likeliest near-term sellers.</dd>
+      <dt>Outreach wave</dt><dd>Wave 1 = we already have a verified email (callable today). Wave 2 = needs a contact found first.</dd>
+      <dt>Revenue band</dt><dd>Firm size by revenue — drives which buyers are a fit.</dd>
+    </dl>
+  </div>
+  <div style="padding:14px 22px 0"><div class="cards" id="ovcards"></div></div>
   <div id="charts" style="padding:16px 22px 60px"></div>
 </section>
 
 <!-- ============ SUPPLY ============ -->
 <section class="page" id="page-supply">
+  <div class="intro">
+    <b>The call list.</b> All 442 firms ranked by seller-intent (highest first). <b>Click any row</b> for the full
+    detail panel — why it's timely, the score breakdown, succession facts, the buyers who'd fit, and the contact.
+    <p><b>Start here:</b> hit <b>🔥 Call queue</b> to filter to firms worth calling today (High/Medium intent, we have
+    an email, not yet contacted). The <b>Service mix</b> column and each firm's <b>industry niche</b> are now web-researched
+    per firm; the intent score is unchanged. Edits (warm-path, status) save in this browser.</p>
+  </div>
   <div style="padding:0 22px"><div class="cards" id="cards"></div></div>
   <div class="toolbar">
     <input id="q" class="grow" placeholder="Search firm, owner, contact, location…"/>
@@ -105,6 +133,21 @@
 
 <!-- ============ BUYERS ============ -->
 <section class="page" id="page-buyers">
+  <div class="intro">
+    <b>The demand side.</b> 60 acquirers we can take sellers to. <b>Matched sellers</b> is the count of off-market firms
+    whose size, geography, and service mix fit that buyer's stated mandate — a fit signal to frame
+    <em>"we may already have a home for you,"</em> not a recomputed score. <b>Click a buyer</b> for its thesis, target size, and top-fit sellers.
+    <p><b>The buyer types, in plain terms:</b></p>
+    <dl class="deflist">
+      <dt>PE-Backed Consolidator</dt><dd>A platform already owned by private equity, actively rolling up smaller firms for scale. The most aggressive acquirers — move fast, pay up for size.</dd>
+      <dt>PE Platform</dt><dd>The anchor firm a PE sponsor buys <em>first</em> to build a roll-up around. Looking for a strong base to add to.</dd>
+      <dt>Top-100 Strategic</dt><dd>A large independent (national / super-regional) firm buying for talent, clients, and geography — strategic fit over financial engineering.</dd>
+      <dt>Regional Consolidator</dt><dd>A mid-size firm growing by acquiring nearby practices inside its own region.</dd>
+      <dt>Regional / Boutique Firm</dt><dd>A smaller independent making the occasional tuck-in acquisition.</dd>
+      <dt>Search Fund</dt><dd>An individual operator (often investor-backed) looking to buy and personally run one firm.</dd>
+      <dt>Independent Sponsor</dt><dd>A dealmaker who lines up an acquisition and raises the equity deal-by-deal, without a committed fund.</dd>
+    </dl>
+  </div>
   <div style="padding:0 22px"><div class="cards" id="bcards"></div></div>
   <div class="toolbar">
     <input id="bq" class="grow" placeholder="Search buyer, sponsor, HQ, thesis…"/>
@@ -133,10 +176,14 @@
        strength, owner count &amp; concentration, founder-led, revenue, founding year /
        years-in-business, buyer-fit tags, and named matched buyers — folded in from the
        underlying pipeline data.</p>
-    <p><b>Needs a research pass or your CRM (left blank, never guessed):</b> precise owner ages,
-       exact partner tenure beyond what the signal states, granular service mix (many show the
-       default "Mixed CPA" until a website pass), and all warm-path/relationship fields
-       (Joey/Sam/Running Numbers/known buyers). These are editable so you can fill them.</p>
+    <p><b>Web-researched (done):</b> service mix, industry niche, office count, and managing
+       partner are now filled per firm for all 441 real firms from each firm's own website
+       (one record is a placeholder test row). A few carry a short "verify" note where the
+       source location or owner name didn't match the live site. Note: this pass updated the
+       displayed facts only — it did <b>not</b> recompute the seller-intent scores or rankings.</p>
+    <p><b>Still needs a research pass or your CRM (left blank, never guessed):</b> precise owner
+       ages, exact partner tenure beyond what the signal states, and all warm-path/relationship
+       fields (Joey/Sam/Running Numbers/known buyers). These are editable so you can fill them.</p>
 
     <h2>Service lines (Manganelli engagement types)</h2>
     <ul>
@@ -215,6 +262,21 @@ function render(){
     <td class="muted">${esc(e.email_confidence)||"—"}</td><td>${e.wave}</td><td class="muted">${esc(e.outreach_status)}</td></tr>`).join("");
   document.querySelectorAll("#body tr").forEach(tr=>tr.onclick=()=>openSeller(tr.dataset.firm));
 }
+const COMPDEF={
+  succession:["Succession signal","Explicit retirement, no-successor, or 'for sale' signals found in the source data. Weighted highest (max 35) — the strongest proxy that an owner is ready to sell."],
+  age_tenure:["Owner age & tenure","Older owners and longer tenures raise sell-readiness (max 25)."],
+  ownership:["Ownership concentration","Fewer owners means a cleaner, faster deal to transact (max 15)."],
+  revenue_fit:["Revenue / buyer fit","How well the firm's size fits active buyer mandates (max 15)."],
+  contactability:["Contactability","Whether we have a verified email and a clear route in (max 10)."],
+  warm_path:["Warm-path bonus","Points you add when there's a relationship — Joey/Sam/Running Numbers/known buyer. Editable: fill it in to push the firm up the list (max 10)."]};
+const BTYPEDEF={
+  "PE-Backed Consolidator":"Platform already owned by private equity, actively rolling up smaller firms for scale. Most aggressive — moves fast, pays up for size.",
+  "PE Platform":"The anchor firm a PE sponsor buys first to build a roll-up around. Wants a strong base to add to.",
+  "Top-100 Strategic":"Large independent (national/super-regional) firm buying for talent, clients, and geography — strategic fit over financial engineering.",
+  "Regional Consolidator":"Mid-size firm growing by acquiring nearby practices inside its own region.",
+  "Regional / Boutique Firm":"Smaller independent making the occasional tuck-in acquisition.",
+  "Search Fund":"An individual operator (often investor-backed) looking to buy and personally run one firm.",
+  "Independent Sponsor":"A dealmaker who lines up an acquisition and raises the equity deal-by-deal, without a committed fund."};
 function openSeller(firm){
   const e=view().find(x=>x.firm===firm);
   const comp=Object.fromEntries((e.score_breakdown||"").split(";").map(s=>s.trim().split(":")).filter(a=>a.length===2).map(([k,v])=>[k,+v]));
@@ -229,8 +291,8 @@ function openSeller(firm){
       <span class="pill b-${e.succession_strength}" style="margin-left:6px">Succession ${e.succession_strength}</span>
       <span class="tag">Wave ${e.wave}</span><span class="tag">Rank #${e.priority_rank}</span></div>
     <div class="touch" style="margin-top:10px">🔎 <b>Why now:</b> ${esc(e.why_now)}</div>
-    <div class="sec"><h3>Seller-intent breakdown</h3>
-      ${Object.entries(comp).map(([k,v])=>`<div class="comp"><span class="lbl">${k}</span><span class="track"><i style="width:${Math.round(100*v/(maxes[k]||1))}%"></i></span><span>${v}/${maxes[k]||"?"}</span></div>`).join("")}</div>
+    <div class="sec"><h3>Seller-intent breakdown<span class="cap">Six weighted components add up to the 0–100 score. Hover a row for what it measures.</span></h3>
+      ${Object.entries(comp).map(([k,v])=>{const d=COMPDEF[k]||[k,""];return `<div class="comp" title="${esc(d[1])}"><span class="lbl help">${esc(d[0])}</span><span class="track"><i style="width:${Math.round(100*v/(maxes[k]||1))}%"></i></span><span>${v}/${maxes[k]||"?"}</span></div>`;}).join("")}</div>
     <div class="sec"><h3>Succession / ownership</h3>
       <div class="kv"><div>Owners (${e.owner_count})</div><div>${esc(e.owners)||"—"}</div>
         <div>Concentration</div><div>${esc(e.ownership_concentration)}</div>
@@ -292,7 +354,7 @@ function brender(){
   const r=brows();document.getElementById("bcount").textContent=r.length+" buyers";
   document.getElementById("bbody").innerHTML=r.map(b=>`<tr data-id="${esc(b.id)}">
     <td class="firm">${esc(b.name)}${b.website?`<div class="muted" style="font-weight:400">${esc(b.website)}</div>`:""}</td>
-    <td>${esc(b.type)}</td><td class="muted">${esc(b.sponsor)||"—"}</td><td class="muted">${esc(b.hq)||"—"}</td>
+    <td><span class="help" title="${esc(BTYPEDEF[b.type]||'')}">${esc(b.type)}</span></td><td class="muted">${esc(b.sponsor)||"—"}</td><td class="muted">${esc(b.hq)||"—"}</td>
     <td class="muted">${esc(b.size_range&&b.size_range!=="Unknown"?b.size_range:(fmtMoney(b.size_lo)+"–"+fmtMoney(b.size_hi)))}</td>
     <td><span class="score">${b.matched_count||0}</span></td></tr>`).join("");
   document.querySelectorAll("#bbody tr").forEach(tr=>tr.onclick=()=>openBuyer(tr.dataset.id));
@@ -300,6 +362,7 @@ function brender(){
 function openBuyer(id){const b=BUYERS.find(x=>x.id===id);
   drawer.innerHTML=`<button class="x" onclick="closeDrawer()">✕ close</button>
     <h2>${esc(b.name)}</h2><div class="muted">${esc(b.type)}${b.sponsor?(" · "+esc(b.sponsor)):""}${b.hq?(" · "+esc(b.hq)):""}</div>
+    ${BTYPEDEF[b.type]?`<div class="note">${esc(BTYPEDEF[b.type])}</div>`:""}
     <div style="margin-top:10px"><span class="tag">Target ${esc(b.size_range&&b.size_range!=="Unknown"?b.size_range:(fmtMoney(b.size_lo)+"–"+fmtMoney(b.size_hi)))}</span>
       <span class="tag">${b.matched_count||0} matched sellers</span>${b.tier?`<span class="tag">Tier ${esc(b.tier)}</span>`:""}</div>
     <div class="sec"><h3>Thesis / fit</h3><div class="touch">${esc(b.fit)||esc(b.rationale)||"—"}</div></div>
@@ -335,6 +398,8 @@ function renderOverview(){
   const bm=BUYERS.filter(b=>b.matched_count>0).length;
   document.getElementById("ovcards").innerHTML=[[v.length,"sellers"],[hi,"high intent"],[late,"late-career"],[ret,"retiring"],[w1,"emailable now"],[BUYERS.length,"buyers"],[bm,"buyers w/ matches"]]
     .map(c=>`<div class="card"><b>${c[0]}</b><span>${c[1]}</span></div>`).join("");
+  const oh=document.getElementById("ovhead");
+  if(oh)oh.textContent=`Start with the ${hi} High-intent firms: ${ret} show a retiring owner and ${late} are late-career. Work the 🔥 Call queue on the Supply tab first.`;
   const rb={"< $1.5M":0,"$1.5–3M":0,"$3–5M":0,"$5–10M":0,"$10–15M":0,"> $15M":0,"Unknown":0};
   v.forEach(e=>{const r=e.revenue;if(!r)rb["Unknown"]++;else if(r<1.5e6)rb["< $1.5M"]++;else if(r<3e6)rb["$1.5–3M"]++;else if(r<5e6)rb["$3–5M"]++;else if(r<=10e6)rb["$5–10M"]++;else if(r<=15e6)rb["$10–15M"]++;else rb["> $15M"]++;});
   const charts=
