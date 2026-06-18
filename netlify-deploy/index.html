@@ -183,7 +183,7 @@
        displayed facts only — it did <b>not</b> recompute the seller-intent scores or rankings.</p>
     <p><b>Still needs a research pass or your CRM (left blank, never guessed):</b> precise owner
        ages, exact partner tenure beyond what the signal states, and all warm-path/relationship
-       fields (Joey/Sam/Running Numbers/known buyers). These are editable so you can fill them.</p>
+       fields (Joe/Sam/Running Numbers/known buyers). These are editable so you can fill them.</p>
 
     <h2>Service lines (Manganelli engagement types)</h2>
     <ul>
@@ -268,7 +268,7 @@ const COMPDEF={
   ownership:["Ownership concentration","Fewer owners means a cleaner, faster deal to transact (max 15)."],
   revenue_fit:["Revenue / buyer fit","How well the firm's size fits active buyer mandates (max 15)."],
   contactability:["Contactability","Whether we have a verified email and a clear route in (max 10)."],
-  warm_path:["Warm-path bonus","Points you add when there's a relationship — Joey/Sam/Running Numbers/known buyer. Editable: fill it in to push the firm up the list (max 10)."]};
+  warm_path:["Warm-path bonus","Points you add when there's a relationship — Joe/Sam/Running Numbers/known buyer. Editable: fill it in to push the firm up the list (max 10)."]};
 const BTYPEDEF={
   "PE-Backed Consolidator":"Platform already owned by private equity, actively rolling up smaller firms for scale. Most aggressive — moves fast, pays up for size.",
   "PE Platform":"The anchor firm a PE sponsor buys first to build a roll-up around. Wants a strong base to add to.",
@@ -313,7 +313,7 @@ function openSeller(firm){
       <div class="touch" id="touch">${esc(e.suggested_first_touch)}</div>
       <button class="copybtn" style="margin-top:8px" onclick="navigator.clipboard.writeText(document.getElementById('touch').textContent)">Copy first touch</button></div>
     <div class="sec"><h3>Warm path <span class="muted">(edit — recomputes intent)</span></h3>
-      ${chk(e,"joey_knows","Joey knows them (+5)")}${chk(e,"sam_knows","Sam knows them (+4)")}
+      ${chk(e,"joey_knows","Joe knows them (+5)")}${chk(e,"sam_knows","Sam knows them (+4)")}
       ${chk(e,"knows_buyer_in_network","Knows a buyer in network (+4)")}${chk(e,"running_numbers_connection","Connected to Running Numbers (+3)")}
       ${chk(e,"referral_partner_connection","Vendor / referral-partner (+2)")}
       <label class="fld">Relationship source</label><input class="full" data-f="relationship_source" value="${esc(e.relationship_source)}"/></div>

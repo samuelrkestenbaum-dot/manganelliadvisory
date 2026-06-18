@@ -39,7 +39,7 @@ When you click a firm you get:
 - **Editable fields** — warm-path + outreach status (see below).
 
 ## The single most valuable thing you can do
-Fill in **warm-path** on firms where we have a connection — *Joey knows them,
+Fill in **warm-path** on firms where we have a connection — *Joe knows them,
 Running Numbers intro, a known buyer relationship, etc.* Type it into the firm's
 warm-path field. That field feeds the score, so adding it **re-ranks the firm
 upward** — it pulls the people we can actually get to the top of the list. We left
