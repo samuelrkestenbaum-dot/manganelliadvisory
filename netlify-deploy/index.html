@@ -123,6 +123,8 @@
   .fchips .chipclear{color:var(--mut);font-size:12px;cursor:pointer;align-self:center;margin-left:4px} .fchips .chipclear:hover{color:var(--acc)}
   .ovbar:hover{filter:brightness(1.3)} .ovcard{cursor:pointer} .ovcard:hover{border-color:var(--acc)}
   .blink,.slink{color:var(--acc);cursor:pointer} .blink:hover,.slink:hover{text-decoration:underline}
+  .cellf{cursor:pointer} td .cellf:hover{outline:1px solid var(--acc);outline-offset:1px;border-radius:3px}
+  #savedViews{max-width:140px} #whoami{color:var(--mut);font-size:11px;margin-left:8px}
 </style>
 </head>
 <body>
@@ -131,13 +133,15 @@
     <div class="loginlogo">Manganelli Advisory</div>
     <div class="muted" style="margin-bottom:6px">Deal Flow Engine — enter the team passphrase</div>
     <input id="loginpass" type="password" placeholder="Passphrase" autocomplete="current-password"/>
+    <label class="muted" style="display:block;text-align:left;font-size:11px;margin-bottom:2px">I am</label>
+    <select id="loginwho" style="width:100%;margin-bottom:10px"><option>Joe</option><option>Sam</option></select>
     <button type="submit">Unlock</button>
     <div id="loginerr" class="loginerr"></div>
   </form>
 </div>
 <header>
   <h1>Manganelli Advisory — Deal Flow Engine</h1>
-  <div class="sub">Off-market supply, the buyer rolodex, and the matches between them. Click any row for detail. <span id="syncbadge" style="margin-left:6px;font-weight:600;color:#9aa7b5">● Connecting…</span><a id="logout" title="Lock / sign out">lock</a></div>
+  <div class="sub">Off-market supply, the buyer rolodex, and the matches between them. Click any row for detail. <span id="syncbadge" style="margin-left:6px;font-weight:600;color:#9aa7b5">● Connecting…</span><span id="whoami"></span><a id="logout" title="Lock / sign out">lock</a></div>
   <div class="tabs">
     <div class="tab active" data-tab="overview">Overview</div>
     <div class="tab" data-tab="supply">Supply · off-market</div>
@@ -185,7 +189,7 @@
     <select id="fSvc"><option value="">All services</option></select>
     <select id="fOwner"><option value="">All owners</option></select>
     <label class="chk" style="margin:0 4px"><input type="checkbox" id="fWarm"/> Warm path only</label>
-    <button id="queue">Call queue</button><button id="due">Due today</button><button id="reset">Reset</button><button id="export">Export CSV</button>
+    <button id="queue">Call queue</button><button id="due">Due today</button><button id="reset">Reset</button><button id="export">Export CSV</button><select id="savedViews"><option value="">Saved views…</option></select><button id="saveView">Save view</button>
     <span class="muted" id="count"></span>
   </div>
   <div id="fchips" class="fchips"></div>
@@ -302,7 +306,7 @@ const SB_REST=SB_BASE+"/rest/v1/seller_edits";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY2hlcGx3ZHdranFwZXV0d2JwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4MDMwMTQsImV4cCI6MjA5NzM3OTAxNH0.OTXIGKv-8FMId0dYpLaQ6NF06j8AQbzOyyw3AVRi7-o";
 const SHARED_EMAIL="team@manganelliadvisory.app";
 const SESS_KEY="manganelli_sess_v1";
-let sbToken=null, pendingSaves=0;
+let sbToken=null, pendingSaves=0, currentUser=localStorage.getItem("manganelli_user")||"Joe";
 function authHeaders(){return {"apikey":SB_KEY,"Authorization":"Bearer "+(sbToken||SB_KEY),"Content-Type":"application/json"};}
 function saveSess(s){if(!s||!s.access_token)return;sbToken=s.access_token;localStorage.setItem(SESS_KEY,JSON.stringify({access_token:s.access_token,refresh_token:s.refresh_token,expires_at:s.expires_at||(Math.floor(Date.now()/1000)+(s.expires_in||3600))}));}
 function haveValidSession(){try{const s=JSON.parse(localStorage.getItem(SESS_KEY)||"null");if(!s||!s.access_token)return false;sbToken=s.access_token;return !!s.expires_at && (s.expires_at*1000>Date.now()+60000);}catch(e){return false;}}
@@ -384,17 +388,24 @@ function render(){
   document.getElementById("body").innerHTML=r.map(e=>`<tr data-firm="${esc(e.firm)}">
     <td class="muted">${e.priority_rank}</td>
     <td class="firm">${esc(e.firm)}<div class="muted" style="font-weight:400">${esc(e.location)}</div></td>
-    <td><span class="pill b-${e.live_band}" title="${e.live_band} intent">${e.live_intent}</span>${e.warm_path_points?` <span class="warm">+${e.warm_path_points}</span>`:""}</td>
-    <td><span class="pill b-${e.succession_strength}">${e.succession_strength}</span></td>
+    <td><span class="pill b-${e.live_band} cellf" data-fk="band" data-fv="${e.live_band}" title="Filter to ${e.live_band} intent">${e.live_intent}</span>${e.warm_path_points?` <span class="warm">+${e.warm_path_points}</span>`:""}</td>
+    <td><span class="pill b-${e.succession_strength} cellf" data-fk="succ" data-fv="${e.succession_strength}" title="Filter to ${e.succession_strength} succession">${e.succession_strength}</span></td>
     <td>${e.owner_count||"—"}</td><td>${e.founder_led}</td><td>${fmtMoney(e.revenue)}</td>
-    <td class="muted">${esc(e.service_mix)}</td><td>${esc(e.state)}</td>
+    <td class="muted">${esc(e.service_mix)}</td><td>${e.state?`<span class="cellf" data-fk="state" data-fv="${esc(e.state)}" title="Filter to ${esc(e.state)}">${esc(e.state)}</span>`:""}</td>
     <td>${esc(e.contact_person)||'<span class="muted">—</span>'}</td>
     <td class="muted">${(()=>{const q=emailQuality(e);return q.label==="no email"?"—":q.label==="verified direct"?"direct":q.label==="shared inbox"?"shared":esc(q.label);})()}</td><td>${e.wave}</td>
     <td>${esc(STAGE[curStage(e)].label)}${isStale(e)?` <span class="stale" title="Quiet ${daysSinceTouch(e)}d — past stage SLA">⚠</span>`:""}</td>
     <td class="muted">${(()=>{const f=forecast(e);return f?fmtMoney(f.weighted_fee):"—";})()}</td></tr>`).join("");
   document.querySelectorAll("#body tr").forEach(tr=>tr.onclick=()=>openSeller(tr.dataset.firm));
+  document.querySelectorAll("#body .cellf").forEach(el=>el.onclick=ev=>{ev.stopPropagation();setFilter(el.dataset.fk,el.dataset.fv);});
   renderChips();
 }
+let VIEWS=JSON.parse(localStorage.getItem("manganelli_views")||"{}");
+function captureView(){return {q,fWave:val("fWave"),fBand:val("fBand"),fSucc:val("fSucc"),fState:val("fState"),fSvc:val("fSvc"),fOwner:val("fOwner"),fWarm:document.getElementById("fWarm").checked,career:F.career,rev:F.rev,retiring:F.retiring,sortKey,sortDir};}
+function applyView(v){q=v.q||"";document.getElementById("q").value=q;["fWave","fBand","fSucc","fState","fSvc","fOwner"].forEach(id=>document.getElementById(id).value=v[id]||"");document.getElementById("fWarm").checked=!!v.fWarm;F.career=v.career||"";F.rev=v.rev||"";F.retiring=!!v.retiring;sortKey=v.sortKey||"live_intent";sortDir=v.sortDir||-1;queueMode=false;dueMode=false;render();summary();}
+function refreshViews(){const sel=document.getElementById("savedViews");if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">Saved views…</option>'+Object.keys(VIEWS).map(n=>`<option>${esc(n)}</option>`).join("");sel.value=cur;}
+function saveView(){const name=prompt("Save current filters as a view:");if(!name)return;VIEWS[name]=captureView();localStorage.setItem("manganelli_views",JSON.stringify(VIEWS));refreshViews();document.getElementById("savedViews").value=name;}
+function setFilter(fk,fv){if(fk==="band")document.getElementById("fBand").value=fv;else if(fk==="succ")document.getElementById("fSucc").value=fv;else if(fk==="state")document.getElementById("fState").value=fv;render();summary();}
 function clearSupplyFilters(){q="";document.getElementById("q").value="";["fWave","fBand","fSucc","fState","fSvc","fOwner"].forEach(id=>document.getElementById(id).value="");document.getElementById("fWarm").checked=false;F.career="";F.rev="";F.retiring=false;queueMode=false;dueMode=false;}
 function renderChips(){
   const el=document.getElementById("fchips");if(!el)return;const c=[];const add=(label,clear)=>c.push({label,clear});
@@ -579,7 +590,7 @@ function openSeller(firm){
       ${stageSince(e)?`<div class="note">In ${STAGE[curStage(e)].label} ${daysInStage(e)!=null?("· "+daysInStage(e)+"d"):""} (since ${esc(stageSince(e))}).</div>`:""}</div>
     <div class="sec"><h3>Activity <span class="muted">${daysSinceTouch(e)!=null?("· "+daysSinceTouch(e)+"d since last touch"):"· no touches logged"}</span></h3>
       <div class="logform">
-        <select id="lgWho">${["Joe","Sam"].map(o=>`<option ${e.owner===o?"selected":""}>${o}</option>`).join("")}</select>
+        <select id="lgWho">${["Joe","Sam"].map(o=>`<option ${currentUser===o?"selected":""}>${o}</option>`).join("")}</select>
         <select id="lgCh">${["Call","Email","Meeting","LinkedIn","Note"].map(o=>`<option>${o}</option>`).join("")}</select>
         <input id="lgNote" class="grow" placeholder="What happened…"/>
         <button id="lgBtn">Log</button></div>
@@ -589,12 +600,12 @@ function openSeller(firm){
     const ev=(el.type==="checkbox"||el.tagName==="SELECT"||el.type==="date")?"change":"input";
     el.addEventListener(ev,()=>{const v=el.type==="checkbox"?(el.checked?"Yes":""):el.value;
       const patch={[f]:v};
-      if(f==="stage"){patch.stage_entered_at=new Date().toISOString().slice(0,10);const a=activityOf(e);a.push({ts:new Date().toISOString(),who:e.owner||"—",channel:"Stage",note:"Moved to "+STAGE[v].label});patch.activity=a;}
+      if(f==="stage"){patch.stage_entered_at=new Date().toISOString().slice(0,10);const a=activityOf(e);a.push({ts:new Date().toISOString(),who:currentUser||e.owner||"—",channel:"Stage",note:"Moved to "+STAGE[v].label});patch.activity=a;}
       saveEdit(firm,patch);render();summary();if(typeof renderForecast==="function")renderForecast();
       if(["joey_knows","sam_knows","knows_buyer_in_network","running_numbers_connection","referral_partner_connection","stage"].includes(f))openSeller(firm);});});
   drawer.querySelectorAll(".pstat").forEach(sl=>sl.addEventListener("change",()=>{setPair(firm,sl.dataset.buyer,sl.value);openSeller(firm);}));
   drawer.querySelectorAll(".blink").forEach(el=>el.onclick=()=>{const b=BUYERS.find(x=>x.name===el.dataset.bn);if(b)openBuyer(b.id);});
-  const ap=drawer.querySelector(".applyst");if(ap)ap.onclick=()=>{const ns=ap.dataset.stage;const a=activityOf(e);a.push({ts:new Date().toISOString(),who:e.owner||"—",channel:"Stage",note:"Moved to "+STAGE[ns].label+" (buyer activity)"});saveEdit(firm,{stage:ns,stage_entered_at:new Date().toISOString().slice(0,10),activity:a});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
+  const ap=drawer.querySelector(".applyst");if(ap)ap.onclick=()=>{const ns=ap.dataset.stage;const a=activityOf(e);a.push({ts:new Date().toISOString(),who:currentUser||e.owner||"—",channel:"Stage",note:"Moved to "+STAGE[ns].label+" (buyer activity)"});saveEdit(firm,{stage:ns,stage_entered_at:new Date().toISOString().slice(0,10),activity:a});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
   const lg=drawer.querySelector("#lgBtn");if(lg)lg.onclick=()=>{const note=(drawer.querySelector("#lgNote").value||"").trim();if(!note)return;logTouch(firm,{ts:new Date().toISOString(),who:drawer.querySelector("#lgWho").value,channel:drawer.querySelector("#lgCh").value,note});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
   wireTrackers(firm);
 }
@@ -784,19 +795,23 @@ function renderForecast(){
   document.getElementById("queue").onclick=()=>{queueMode=true;dueMode=false;["fBand","fSucc","fState","fSvc"].forEach(id=>document.getElementById(id).value="");document.getElementById("q").value="";document.getElementById("fWarm").checked=false;document.getElementById("fWave").value="1";q="";sortKey="live_intent";sortDir=-1;document.querySelector('.tab[data-tab="supply"]').click();render();};
   document.getElementById("due").onclick=()=>{dueMode=true;queueMode=false;["fBand","fSucc","fState","fSvc","fOwner","fWave"].forEach(id=>document.getElementById(id).value="");document.getElementById("q").value="";document.getElementById("fWarm").checked=false;q="";document.querySelector('.tab[data-tab="supply"]').click();render();};
   document.getElementById("export").onclick=exportCSV;
+  refreshViews();
+  document.getElementById("savedViews").addEventListener("change",ev=>{const v=VIEWS[ev.target.value];if(v)applyView(v);});
+  document.getElementById("saveView").onclick=saveView;
   // buyer filters
   const btypes=[...new Set(BUYERS.map(b=>b.type).filter(Boolean))].sort();
   document.getElementById("bType").innerHTML+=btypes.map(t=>`<option>${t}</option>`).join("");
   document.getElementById("bq").addEventListener("input",()=>{bq=val("bq");brender();});
   document.getElementById("bType").addEventListener("change",brender);
-  document.getElementById("loginform").addEventListener("submit",async ev=>{ev.preventDefault();const errEl=document.getElementById("loginerr");errEl.textContent="Checking…";try{await signIn(document.getElementById("loginpass").value);boot();}catch(e){errEl.textContent="Wrong passphrase — try again.";}});
+  document.getElementById("loginwho").value=currentUser;
+  document.getElementById("loginform").addEventListener("submit",async ev=>{ev.preventDefault();const errEl=document.getElementById("loginerr");errEl.textContent="Checking…";try{await signIn(document.getElementById("loginpass").value);currentUser=document.getElementById("loginwho").value||"Joe";localStorage.setItem("manganelli_user",currentUser);boot();}catch(e){errEl.textContent="Wrong passphrase — try again.";}});
   document.getElementById("logout").addEventListener("click",ev=>{ev.preventDefault();localStorage.removeItem(SESS_KEY);location.reload();});
   gateAuth();
 })();
 function showLogin(){const el=document.getElementById("login");if(el)el.style.display="flex";}
 function hideLogin(){const el=document.getElementById("login");if(el)el.style.display="none";}
 let booted=false;
-function boot(){if(booted)return;booted=true;hideLogin();
+function boot(){if(booted)return;booted=true;hideLogin();const wi=document.getElementById("whoami");if(wi)wi.textContent="· "+currentUser;
   buildMatches();render();summary();brender();bsummary();renderOverview();renderForecast();renderDeals();
   setSync("connecting");
   sbLoad().then(ok=>{if(ok){buildMatches();render();summary();brender();bsummary();renderOverview();renderForecast();renderDeals();}});
