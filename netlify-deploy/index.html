@@ -176,8 +176,8 @@
     All 441 firms, ranked by seller-intent, highest first. Clicking a row opens a one-paragraph briefing on the
     firm — why it's timely, the case behind its score, the deal economics, the buyers who fit, and how to reach it.
     <p>The Call queue button filters to firms worth calling today: High or Medium intent, an email on file, not yet
-    contacted. Service mix and industry niche are web-researched per firm; the intent score is unchanged. Edits save
-    in this browser.</p>
+    contacted. Service mix and industry niche are web-researched per firm. Your edits — stage, owner, activity,
+    warm-path, outreach status — sync live across the team and are cached locally for offline use.</p>
   </div>
   <div style="padding:0 22px"><div class="cards" id="cards"></div></div>
   <div class="toolbar">
@@ -200,7 +200,7 @@
 <section class="page" id="page-buyers">
   <div class="intro">
     The demand side: 60 acquirers we can take sellers to. "Matched sellers" counts the firms where this buyer
-    is a <b>top-3, geographically-targeted fit</b> (score ≥ 85) — not a national catch-all — so the number reflects
+    is a <b>top-2, geographically-targeted fit</b> (score ≥ 85) — not a national catch-all — so the number reflects
     real fit, not reach. Clicking a buyer opens its thesis and lets you track each approach
     (Approached → Interested → LOI) — a demand pipeline that mirrors the supply side.
     <p><b>The buyer types, in plain terms:</b></p>
@@ -364,7 +364,7 @@ const COLS=[["priority_rank","#","Priority rank in the book."],["firm","Firm",""
   ["succession_strength","Succession","How strongly the firm shows retirement / no-successor signals (founder age, tenure, next-gen partner) — the biggest driver of the score."],
   ["owner_count","Owners","Number of owners/partners; fewer means a cleaner deal."],["founder_led","Founder-led","Is a founder still leading? Founder-led firms are likelier sellers."],
   ["revenue","Revenue","Estimated annual revenue — most figures are estimates (see the firm panel)."],["service_mix","Service mix","Web-researched service lines."],["state","St",""],["contact_person","Contact",""],
-  ["email_confidence","Email","How reachable a decision-maker is by email. 'shared' = a generic inbox (info@/team@), not the owner's direct line."],["wave","Wave","Wave 1 = verified email, callable now. Wave 2 = needs a contact found first."],
+  ["email_confidence","Reachability","The type of email route on file (not the address): 'direct' = the owner's personal address; 'shared' = a generic inbox (info@/team@); blank = none yet."],["wave","Wave","Wave 1 = verified email, callable now. Wave 2 = needs a contact found first."],
   ["stage","Stage","Pipeline stage; drives the forecast win-probability."],["weighted_fee","Weighted","Estimated Manganelli fee × the stage's win-probability."]];
 let sortKey="live_intent",sortDir=-1,q="",queueMode=false,dueMode=false;
 function val(id){return document.getElementById(id).value;}
@@ -404,7 +404,7 @@ function render(){
     <td>${esc(e.contact_person)||'<span class="muted">—</span>'}</td>
     <td class="muted">${(()=>{const q=emailQuality(e);return q.label==="no email"?"—":q.label==="verified direct"?"direct":q.label==="shared inbox"?"shared":esc(q.label);})()}</td><td>${e.wave}</td>
     <td>${esc(STAGE[curStage(e)].label)}${isStale(e)?` <span class="stale" title="Quiet ${daysSinceTouch(e)}d — past stage SLA">⚠</span>`:""}</td>
-    <td class="muted">${(()=>{const f=forecast(e);return f?fmtMoney(f.weighted_fee):"—";})()}</td></tr>`).join("");
+    <td class="muted">${(()=>{const liveD=STAGES.findIndex(s=>s.k===curStage(e))>=STAGES.findIndex(s=>s.k==="contacted");const f=forecast(e);return (liveD&&f)?fmtMoney(f.weighted_fee):'<span class="muted" title="Expected fee only counts once a deal is in motion (Contacted or later)">—</span>';})()}</td></tr>`).join("");
   document.querySelectorAll("#body tr").forEach(tr=>tr.onclick=()=>openSeller(tr.dataset.firm));
   document.querySelectorAll("#body .cellf").forEach(el=>el.onclick=ev=>{ev.stopPropagation();setFilter(el.dataset.fk,el.dataset.fv);});
   renderChips();
@@ -480,7 +480,7 @@ function feeRate(ev){return ev<=2e6?0.10:ev<=5e6?0.08:ev<=10e6?0.06:0.05;}
 function forecast(e){const ev=evRange(e);if(!ev)return null;const mid=(ev[0]+ev[1])/2;const fee=Math.max(mid*feeRate(mid),50000);const st=STAGE[curStage(e)]||STAGE.sourced;const p=(e.win_probability_override!=null&&e.win_probability_override!==""?+e.win_probability_override:st.p)/100;return {ev_lo:ev[0],ev_hi:ev[1],ev_mid:mid,fee,p,weighted_fee:fee*p,weighted_ev:mid*p};}
 /* ===== real seller<->buyer matching (slice: demand pipeline) ===== */
 const PAIR_STATES=["","Approached","Interested","Passed","LOI"];
-function buildMatches(){const inv={};SELLERS.forEach(s=>{(s.cbuyers||[]).slice().sort((a,b)=>b.score-a.score).slice(0,3).filter(c=>c.score>=85).forEach(c=>{(inv[c.name]=inv[c.name]||[]).push({firm:s.firm,score:c.score,why:c.why,state:s.state,revenue:s.revenue});});});BUYERS.forEach(b=>{const m=(inv[b.name]||[]).sort((x,y)=>y.score-x.score);b.real_matched=m;b.matched_count=m.length;});}
+function buildMatches(){const inv={};SELLERS.forEach(s=>{(s.cbuyers||[]).slice().sort((a,b)=>b.score-a.score).slice(0,2).filter(c=>c.score>=85).forEach(c=>{(inv[c.name]=inv[c.name]||[]).push({firm:s.firm,score:c.score,why:c.why,state:s.state,revenue:s.revenue});});});BUYERS.forEach(b=>{const m=(inv[b.name]||[]).sort((x,y)=>y.score-x.score);b.real_matched=m;b.matched_count=m.length;});}
 function pairStatus(firm,buyer){const p=edits[firm]&&edits[firm].pairs;return (p&&p[buyer])||"";}
 function setPair(firm,buyer,status){const p=Object.assign({},(edits[firm]&&edits[firm].pairs)||{});if(status)p[buyer]=status;else delete p[buyer];saveEdit(firm,{pairs:p});}
 function demandRollup(b){const c={Approached:0,Interested:0,Passed:0,LOI:0};(b.real_matched||[]).forEach(m=>{const s=pairStatus(m.firm,b.name);if(c[s]!=null)c[s]++;});const parts=Object.entries(c).filter(e=>e[1]>0).map(e=>`<span class="tag">${e[0]} ${e[1]}</span>`);return parts.length?`<div style="margin:4px 0 8px">${parts.join("")}</div>`:'<div class="note">No outreach logged to these buyers yet.</div>';}
@@ -673,7 +673,7 @@ function openBuyer(id){const b=BUYERS.find(x=>x.id===id);
 }
 function bsummary(){const t=BUYERS.length;const matched=BUYERS.filter(b=>(b.matched_count||0)>0).length;
   const types=new Set(BUYERS.map(b=>b.type)).size;
-  document.getElementById("bcards").innerHTML=[[t,"buyers"],[matched,"with matches"],[types,"buyer types"]]
+  document.getElementById("bcards").innerHTML=[[t,"buyers"],[matched,"with strong-fit sellers"],[t-matched,"no fit yet"],[types,"buyer types"]]
     .map(c=>`<div class="card"><b>${c[0]}</b><span>${c[1]}</span></div>`).join("");}
 
 /* ================= OVERVIEW ================= */
