@@ -1,7 +1,8 @@
 # Joe — how to use the off-market dashboard
 
 **Link:** https://fascinating-jelly-7ea629.netlify.app
-(Bookmark it. Works in any browser, nothing to install, no login.)
+(Bookmark it. Works in any browser, nothing to install. One-time **passphrase** to unlock —
+ask Sam for it; your device remembers the login after that.)
 
 This is our 441-firm off-market list turned into a "who do we call first, and why"
 tool, with the buyer side attached so every target comes with "who would acquire

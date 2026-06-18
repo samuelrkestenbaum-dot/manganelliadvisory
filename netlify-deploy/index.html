@@ -110,12 +110,28 @@
   .trtbl{width:100%;font-size:12px;margin:6px 0} .trtbl th{font-size:10.5px} .trtbl td{padding:5px 6px;vertical-align:top}
   .tradd{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px} .tradd .trin{font-size:12px;padding:4px 6px;flex:1;min-width:88px} .trdel{color:var(--mut);background:none;border:none;cursor:pointer}
   #page-deals table{width:calc(100% - 44px);margin:0 22px 8px} #dealcontent .dealrow{cursor:pointer} #dealcontent .dealrow:hover{background:#1b212a}
+  .loginwrap{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center}
+  .loginbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px 30px;width:min(360px,92vw);text-align:center}
+  .loginlogo{font-size:18px;font-weight:700;margin-bottom:2px}
+  .loginbox input{width:100%;margin:8px 0 10px;padding:10px 12px;font-size:14px}
+  .loginbox button{width:100%;padding:10px;font-weight:600;border-color:var(--acc)}
+  .loginerr{color:#ff6b6b;font-size:12px;margin-top:8px;min-height:14px}
+  #logout{color:var(--mut);font-size:11px;margin-left:10px;text-decoration:none;cursor:pointer} #logout:hover{color:var(--acc)}
 </style>
 </head>
 <body>
+<div id="login" class="loginwrap">
+  <form id="loginform" class="loginbox">
+    <div class="loginlogo">Manganelli Advisory</div>
+    <div class="muted" style="margin-bottom:6px">Deal Flow Engine — enter the team passphrase</div>
+    <input id="loginpass" type="password" placeholder="Passphrase" autocomplete="current-password"/>
+    <button type="submit">Unlock</button>
+    <div id="loginerr" class="loginerr"></div>
+  </form>
+</div>
 <header>
   <h1>Manganelli Advisory — Deal Flow Engine</h1>
-  <div class="sub">Off-market supply, the buyer rolodex, and the matches between them. Click any row for detail. <span id="syncbadge" style="margin-left:6px;font-weight:600;color:#9aa7b5">● Connecting…</span></div>
+  <div class="sub">Off-market supply, the buyer rolodex, and the matches between them. Click any row for detail. <span id="syncbadge" style="margin-left:6px;font-weight:600;color:#9aa7b5">● Connecting…</span><a id="logout" title="Lock / sign out">lock</a></div>
   <div class="tabs">
     <div class="tab active" data-tab="overview">Overview</div>
     <div class="tab" data-tab="supply">Supply · off-market</div>
@@ -261,7 +277,8 @@
     <p class="note">Edits — stage, owner, activity log, warm-path, buyer-outreach status, next-actions — sync live
        across the team via a Supabase backend, so you and Joe always see the same book. A local copy is cached in
        your browser for offline use; the badge in the header shows whether you're synced or offline. (Same-firm
-       simultaneous edits are last-write-wins at the firm level.)</p>
+       simultaneous edits are last-write-wins at the firm level.) Access is gated by a shared team passphrase
+       (Supabase Auth) — the shared edit/deal data is only readable or writable once you've unlocked.</p>
   </div>
 </section>
 
@@ -273,13 +290,20 @@ const BUYERS  = [{"id":"B0","name":"Aprio","type":"PE-Backed Consolidator","spon
 const LS = "manganelli_enrich_v1";
 const edits = JSON.parse(localStorage.getItem(LS) || "{}");
 /* ===== shared state via Supabase (live multi-user sync; degrades to local) ===== */
-const SB_REST="https://zrcheplwdwkjqpeutwbp.supabase.co/rest/v1/seller_edits";
+const SB_BASE="https://zrcheplwdwkjqpeutwbp.supabase.co";
+const SB_REST=SB_BASE+"/rest/v1/seller_edits";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY2hlcGx3ZHdranFwZXV0d2JwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4MDMwMTQsImV4cCI6MjA5NzM3OTAxNH0.OTXIGKv-8FMId0dYpLaQ6NF06j8AQbzOyyw3AVRi7-o";
-const SB_H={"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"};
-let pendingSaves=0;
+const SHARED_EMAIL="team@manganelliadvisory.app";
+const SESS_KEY="manganelli_sess_v1";
+let sbToken=null, pendingSaves=0;
+function authHeaders(){return {"apikey":SB_KEY,"Authorization":"Bearer "+(sbToken||SB_KEY),"Content-Type":"application/json"};}
+function saveSess(s){if(!s||!s.access_token)return;sbToken=s.access_token;localStorage.setItem(SESS_KEY,JSON.stringify({access_token:s.access_token,refresh_token:s.refresh_token,expires_at:s.expires_at||(Math.floor(Date.now()/1000)+(s.expires_in||3600))}));}
+function haveValidSession(){try{const s=JSON.parse(localStorage.getItem(SESS_KEY)||"null");if(!s||!s.access_token)return false;sbToken=s.access_token;return !!s.expires_at && (s.expires_at*1000>Date.now()+60000);}catch(e){return false;}}
+async function signIn(pass){const r=await fetch(SB_BASE+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:SHARED_EMAIL,password:pass})});if(!r.ok)throw new Error("auth");saveSess(await r.json());return true;}
+async function refreshSess(){try{const s=JSON.parse(localStorage.getItem(SESS_KEY)||"null");if(!s||!s.refresh_token)return false;const r=await fetch(SB_BASE+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:s.refresh_token})});if(!r.ok)return false;saveSess(await r.json());return true;}catch(e){return false;}}
 function setSync(s){const el=document.getElementById("syncbadge");if(!el)return;const m={synced:["● Shared · synced","#3ecf8e"],saving:["● Saving…","#4f9cf9"],offline:["● Offline · local only","#ffb454"],connecting:["● Connecting…","#9aa7b5"]}[s]||["",""];el.textContent=m[0];el.style.color=m[1];}
-async function sbLoad(){if(pendingSaves>0)return false;try{const r=await fetch(SB_REST+"?select=firm,data",{headers:SB_H});if(!r.ok)throw 0;const rows=await r.json();const rem={};rows.forEach(x=>rem[x.firm]=x.data||{});Object.keys(edits).forEach(k=>delete edits[k]);Object.assign(edits,rem);localStorage.setItem(LS,JSON.stringify(edits));setSync("synced");return true;}catch(e){setSync("offline");return false;}}
-async function sbSave(firm){if(!firm)return;pendingSaves++;setSync("saving");try{const r=await fetch(SB_REST,{method:"POST",headers:Object.assign({Prefer:"resolution=merge-duplicates,return=minimal"},SB_H),body:JSON.stringify({firm,data:edits[firm]||{},updated_at:new Date().toISOString()})});if(!r.ok)throw 0;setSync("synced");}catch(e){setSync("offline");}finally{pendingSaves=Math.max(0,pendingSaves-1);}}
+async function sbLoad(retry){if(pendingSaves>0)return false;try{const r=await fetch(SB_REST+"?select=firm,data",{headers:authHeaders()});if(r.status===401){if(!retry&&await refreshSess())return sbLoad(true);showLogin();setSync("offline");return false;}if(!r.ok)throw 0;const rows=await r.json();const rem={};rows.forEach(x=>rem[x.firm]=x.data||{});Object.keys(edits).forEach(k=>delete edits[k]);Object.assign(edits,rem);localStorage.setItem(LS,JSON.stringify(edits));setSync("synced");return true;}catch(e){setSync("offline");return false;}}
+async function sbSave(firm,retry){if(!firm)return;pendingSaves++;setSync("saving");try{const r=await fetch(SB_REST,{method:"POST",headers:Object.assign({Prefer:"resolution=merge-duplicates,return=minimal"},authHeaders()),body:JSON.stringify({firm,data:edits[firm]||{},updated_at:new Date().toISOString()})});if(r.status===401&&!retry){if(await refreshSess())return await sbSave(firm,true);showLogin();setSync("offline");return;}if(!r.ok)throw 0;setSync("synced");}catch(e){setSync("offline");}finally{pendingSaves=Math.max(0,pendingSaves-1);}}
 const drawer = document.getElementById("drawer");
 function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function fmtMoney(v){return v? (v>=1e6? "$"+(v/1e6).toFixed(1)+"M":"$"+Math.round(v/1e3)+"k"):"—";}
@@ -703,12 +727,20 @@ function renderForecast(){
   document.getElementById("bType").innerHTML+=btypes.map(t=>`<option>${t}</option>`).join("");
   document.getElementById("bq").addEventListener("input",()=>{bq=val("bq");brender();});
   document.getElementById("bType").addEventListener("change",brender);
+  document.getElementById("loginform").addEventListener("submit",async ev=>{ev.preventDefault();const errEl=document.getElementById("loginerr");errEl.textContent="Checking…";try{await signIn(document.getElementById("loginpass").value);boot();}catch(e){errEl.textContent="Wrong passphrase — try again.";}});
+  document.getElementById("logout").addEventListener("click",ev=>{ev.preventDefault();localStorage.removeItem(SESS_KEY);location.reload();});
+  gateAuth();
+})();
+function showLogin(){const el=document.getElementById("login");if(el)el.style.display="flex";}
+function hideLogin(){const el=document.getElementById("login");if(el)el.style.display="none";}
+let booted=false;
+function boot(){if(booted)return;booted=true;hideLogin();
   buildMatches();render();summary();brender();bsummary();renderOverview();renderForecast();renderDeals();
   setSync("connecting");
   sbLoad().then(ok=>{if(ok){buildMatches();render();summary();brender();bsummary();renderOverview();renderForecast();renderDeals();}});
-  setInterval(()=>{if(document.hidden)return;sbLoad().then(ok=>{if(ok){render();summary();renderForecast();}});},15000);
-  window.addEventListener("focus",()=>sbLoad().then(ok=>{if(ok){render();summary();renderForecast();}}));
-})();
+  setInterval(()=>{if(document.hidden)return;sbLoad().then(ok=>{if(ok){render();summary();renderForecast();renderDeals();}});},15000);
+  window.addEventListener("focus",()=>sbLoad().then(ok=>{if(ok){render();summary();renderForecast();renderDeals();}}));}
+async function gateAuth(){if(haveValidSession()){boot();return;}if(await refreshSess()){boot();return;}showLogin();}
 </script>
 </body>
 </html>
