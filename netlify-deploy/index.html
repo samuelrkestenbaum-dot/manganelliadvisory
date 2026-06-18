@@ -107,6 +107,9 @@
   .badge-amber{font-size:10px;color:#ffb454;border:1px solid rgba(255,180,84,.4);border-radius:4px;padding:0 5px;text-transform:uppercase;letter-spacing:.3px}
   .badge-mut{font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 5px;text-transform:uppercase;letter-spacing:.3px}
   .fhero{margin:8px 22px 0;font-size:13.5px;color:#cdd6e0} .fhero .big{font-size:22px;font-weight:700;color:var(--good)}
+  .trtbl{width:100%;font-size:12px;margin:6px 0} .trtbl th{font-size:10.5px} .trtbl td{padding:5px 6px;vertical-align:top}
+  .tradd{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px} .tradd .trin{font-size:12px;padding:4px 6px;flex:1;min-width:88px} .trdel{color:var(--mut);background:none;border:none;cursor:pointer}
+  #page-deals table{width:calc(100% - 44px);margin:0 22px 8px} #dealcontent .dealrow{cursor:pointer} #dealcontent .dealrow:hover{background:#1b212a}
 </style>
 </head>
 <body>
@@ -118,6 +121,7 @@
     <div class="tab" data-tab="supply">Supply · off-market</div>
     <div class="tab" data-tab="buyers">Buyers · demand</div>
     <div class="tab" data-tab="forecast">Forecast</div>
+    <div class="tab" data-tab="deals">Deals</div>
     <div class="tab" data-tab="about">Method &amp; services</div>
   </div>
 </header>
@@ -206,6 +210,17 @@
   <div id="fcontent" style="padding:0 0 60px"></div>
 </section>
 
+<section class="page" id="page-deals">
+  <div class="intro">
+    Active deals — the firms actually in motion. A firm appears here once it reaches Mandated, has a buyer in
+    outreach, or has an LOI, diligence item, or purchase-agreement issue logged. Open a firm to compare LOIs
+    side-by-side, track diligence requests to a deadline and owner, and log purchase-agreement issues — all of it
+    syncs across the team.
+  </div>
+  <div style="padding:0 22px"><div class="cards" id="dealcards"></div></div>
+  <div id="dealcontent" style="padding:0 0 60px"></div>
+</section>
+
 <!-- ============ ABOUT ============ -->
 <section class="page" id="page-about">
   <div class="prose">
@@ -278,6 +293,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   t.classList.add("active");
   document.getElementById("page-"+t.dataset.tab).classList.add("active");
   if(t.dataset.tab==="forecast")renderForecast();
+  if(t.dataset.tab==="deals")renderDeals();
   closeDrawer();
 });
 
@@ -505,7 +521,7 @@ function openSeller(firm){
         <select id="lgCh">${["Call","Email","Meeting","LinkedIn","Note"].map(o=>`<option>${o}</option>`).join("")}</select>
         <input id="lgNote" class="grow" placeholder="What happened…"/>
         <button id="lgBtn">Log</button></div>
-      <div class="actlog">${activityOf(e).slice().reverse().map(x=>`<div class="actrow"><span class="muted">${fmtTs(x.ts)}</span> · <b>${esc(x.who)}</b> <span class="tag">${esc(x.channel)}</span> ${esc(x.note)}</div>`).join("")||'<div class="muted">No activity yet — log the first touch above.</div>'}</div></div>`;
+      <div class="actlog">${activityOf(e).slice().reverse().map(x=>`<div class="actrow"><span class="muted">${fmtTs(x.ts)}</span> · <b>${esc(x.who)}</b> <span class="tag">${esc(x.channel)}</span> ${esc(x.note)}</div>`).join("")||'<div class="muted">No activity yet — log the first touch above.</div>'}</div></div>${TRACKERS.map(t=>renderTracker(e,t)).join("")}`;
   drawer.classList.add("open");
   drawer.querySelectorAll("[data-f]").forEach(el=>{const f=el.dataset.f;
     const ev=(el.type==="checkbox"||el.tagName==="SELECT"||el.type==="date")?"change":"input";
@@ -517,6 +533,7 @@ function openSeller(firm){
   drawer.querySelectorAll(".pstat").forEach(sl=>sl.addEventListener("change",()=>{setPair(firm,sl.dataset.buyer,sl.value);openSeller(firm);}));
   const ap=drawer.querySelector(".applyst");if(ap)ap.onclick=()=>{const ns=ap.dataset.stage;const a=activityOf(e);a.push({ts:new Date().toISOString(),who:e.owner||"—",channel:"Stage",note:"Moved to "+STAGE[ns].label+" (buyer activity)"});saveEdit(firm,{stage:ns,stage_entered_at:new Date().toISOString().slice(0,10),activity:a});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
   const lg=drawer.querySelector("#lgBtn");if(lg)lg.onclick=()=>{const note=(drawer.querySelector("#lgNote").value||"").trim();if(!note)return;logTouch(firm,{ts:new Date().toISOString(),who:drawer.querySelector("#lgWho").value,channel:drawer.querySelector("#lgCh").value,note});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
+  wireTrackers(firm);
 }
 function chk(e,f,label){return `<label class="chk"><input type="checkbox" data-f="${f}" ${yes(e[f])?"checked":""}/> ${label}</label>`;}
 function sel(e,f,opts){return `<select class="full" data-f="${f}">${opts.map(o=>`<option ${e[f]===o?"selected":""}>${o}</option>`).join("")}</select>`;}
@@ -611,6 +628,30 @@ function renderOverview(){
 }
 
 /* ================= FORECAST ================= */
+/* ================= DEAL EXECUTION (LOI / diligence / PA issues) ================= */
+const TRACKERS=[
+  {key:"lois",title:"LOIs — compare bids",cols:[{f:"buyer",label:"Buyer",type:"text"},{f:"price",label:"Headline $",type:"text"},{f:"cash",label:"Cash at close",type:"text"},{f:"note",label:"Seller note",type:"text"},{f:"earnout",label:"Earnout",type:"text"},{f:"terms",label:"Employment / terms",type:"text"}]},
+  {key:"diligence",title:"Diligence tracker",cols:[{f:"item",label:"Request",type:"text"},{f:"owner",label:"Owner",type:"select",opts:["Joe","Sam","Seller","Buyer"]},{f:"due",label:"Due",type:"date"},{f:"status",label:"Status",type:"select",opts:["Open","In progress","Blocked","Done"]}]},
+  {key:"pa_issues",title:"Purchase-agreement issues",cols:[{f:"issue",label:"Issue",type:"text"},{f:"buyer_pos",label:"Buyer position",type:"text"},{f:"seller_pos",label:"Seller position",type:"text"},{f:"status",label:"Status",type:"select",opts:["Open","Negotiating","Resolved"]}]}];
+function renderTracker(e,cfg){const items=e[cfg.key]||[];
+  const head=cfg.cols.map(c=>`<th>${esc(c.label)}</th>`).join("")+"<th></th>";
+  const body=items.map((it,i)=>`<tr>${cfg.cols.map(c=>`<td>${esc(it[c.f]||"")}</td>`).join("")}<td><button class="trdel" data-key="${cfg.key}" data-i="${i}" title="remove">✕</button></td></tr>`).join("");
+  const inputs=cfg.cols.map(c=>c.type==="select"?`<select class="trin" data-f="${c.f}">${c.opts.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("")}</select>`:`<input class="trin" data-f="${c.f}" type="${c.type==="date"?"date":"text"}" placeholder="${esc(c.label)}"/>`).join("");
+  return `<details class="more"${items.length?" open":""}><summary>${esc(cfg.title)}${items.length?` (${items.length})`:""}</summary>
+    ${items.length?`<table class="trtbl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`:'<div class="muted" style="font-size:12px;margin:4px 0">None logged yet.</div>'}
+    <div class="tradd" data-key="${cfg.key}">${inputs}<button class="traddbtn" data-key="${cfg.key}">Add</button></div></details>`;}
+function wireTrackers(firm){
+  drawer.querySelectorAll(".traddbtn").forEach(btn=>btn.onclick=()=>{const key=btn.dataset.key,wrap=btn.closest(".tradd"),row={};wrap.querySelectorAll(".trin").forEach(inp=>{row[inp.dataset.f]=inp.value;});if(!Object.keys(row).some(k=>(row[k]||"").trim()))return;const e=view().find(x=>x.firm===firm),arr=(e[key]||[]).slice();arr.push(row);saveEdit(firm,{[key]:arr});openSeller(firm);});
+  drawer.querySelectorAll(".trdel").forEach(b=>b.onclick=()=>{const key=b.dataset.key,i=+b.dataset.i,e=view().find(x=>x.firm===firm),arr=(e[key]||[]).slice();arr.splice(i,1);saveEdit(firm,{[key]:arr});openSeller(firm);});}
+function openCount(arr,done){return (arr||[]).filter(x=>!done.includes((x.status||"").toLowerCase())).length;}
+function isActiveDeal(e){const st=curStage(e);return ["mandated","in_market","loi","diligence","closed_won"].includes(st)||(e.lois&&e.lois.length)||(e.diligence&&e.diligence.length)||(e.pa_issues&&e.pa_issues.length)||(e.cbuyers||[]).some(c=>pairStatus(e.firm,c.name));}
+function renderDeals(){
+  const v=view().filter(isActiveDeal).sort((a,b)=>STAGES.findIndex(s=>s.k===curStage(b))-STAGES.findIndex(s=>s.k===curStage(a)));
+  let lois=0,dil=0,pa=0;v.forEach(e=>{lois+=(e.lois||[]).length;dil+=openCount(e.diligence,["done"]);pa+=openCount(e.pa_issues,["resolved"]);});
+  document.getElementById("dealcards").innerHTML=[[v.length,"active deals"],[lois,"LOIs on the table"],[dil,"open diligence items"],[pa,"open PA issues"]].map(c=>`<div class="card"><b>${c[0]}</b><span>${c[1]}</span></div>`).join("");
+  const rows=v.map(e=>{const f=forecast(e);return `<tr class="dealrow" data-firm="${esc(e.firm)}"><td class="firm">${esc(e.firm)}</td><td>${STAGE[curStage(e)].label}</td><td class="muted">${esc(e.owner||"Unassigned")}</td><td>${(e.lois||[]).length||"—"}</td><td>${openCount(e.diligence,["done"])||"—"}</td><td>${openCount(e.pa_issues,["resolved"])||"—"}</td><td>${f?fmtMoney(f.weighted_fee):"—"}</td></tr>`;}).join("");
+  document.getElementById("dealcontent").innerHTML=v.length?`<table><thead><tr><th>Firm</th><th>Stage</th><th>Owner</th><th>LOIs</th><th>Open diligence</th><th>Open PA issues</th><th>Weighted</th></tr></thead><tbody>${rows}</tbody></table>`:'<div class="muted" style="margin:0 22px">No active deals yet. A firm appears here once it reaches Mandated, has a buyer in outreach, or has an LOI / diligence / purchase-agreement item logged.</div>';
+  document.querySelectorAll("#dealcontent .dealrow").forEach(tr=>tr.onclick=()=>openSeller(tr.dataset.firm));}
 function renderForecast(){
   const v=view().map(e=>({e,f:forecast(e),st:curStage(e)}));
   const open=v.filter(x=>STAGE[x.st].cat==="open");
@@ -662,9 +703,9 @@ function renderForecast(){
   document.getElementById("bType").innerHTML+=btypes.map(t=>`<option>${t}</option>`).join("");
   document.getElementById("bq").addEventListener("input",()=>{bq=val("bq");brender();});
   document.getElementById("bType").addEventListener("change",brender);
-  buildMatches();render();summary();brender();bsummary();renderOverview();renderForecast();
+  buildMatches();render();summary();brender();bsummary();renderOverview();renderForecast();renderDeals();
   setSync("connecting");
-  sbLoad().then(ok=>{if(ok){buildMatches();render();summary();brender();bsummary();renderOverview();renderForecast();}});
+  sbLoad().then(ok=>{if(ok){buildMatches();render();summary();brender();bsummary();renderOverview();renderForecast();renderDeals();}});
   setInterval(()=>{if(document.hidden)return;sbLoad().then(ok=>{if(ok){render();summary();renderForecast();}});},15000);
   window.addEventListener("focus",()=>sbLoad().then(ok=>{if(ok){render();summary();renderForecast();}}));
 })();
