@@ -65,7 +65,8 @@
   .drawer{position:fixed;top:0;right:0;height:100%;width:min(560px,94vw);background:var(--panel);border-left:1px solid var(--line2);
           transform:translateX(100%);transition:transform .2s cubic-bezier(.4,0,.2,1);z-index:50;overflow:auto;padding:20px 22px}
   .drawer.open{transform:none;box-shadow:var(--sh3)}
-  .drawer .x{position:absolute;top:14px;right:16px}
+  .drawer .x{position:absolute;top:14px;right:16px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:var(--panel2);border:1px solid var(--line2);color:var(--mut);cursor:pointer;font-size:15px;line-height:1;transition:color .12s,border-color .12s}
+  .drawer .x:hover{color:var(--ink);border-color:var(--acc)}
   .drawer h2{margin:0 0 2px;font-size:19px;font-weight:700;letter-spacing:-.3px}
   .kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:14px 0;font-size:13px}
   .kv div:nth-child(odd){color:var(--mut)}
@@ -73,7 +74,7 @@
   .sec h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut)}
   .comp{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px}
   .comp .lbl{width:152px;color:var(--mut)} .comp .track{flex:1;height:8px;background:#2a313b;border-radius:4px;overflow:hidden}
-  .comp .track>i{display:block;height:100%;background:var(--acc)}
+  .comp .track>i{display:block;height:100%;background:var(--grad)}
   .touch{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px;color:#dfe7ef}
   label.fld{display:block;margin:8px 0 3px;color:var(--mut);font-size:12px}
   .chk{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px}.chk input{width:16px;height:16px}
@@ -94,9 +95,12 @@
   .help{cursor:help;border-bottom:1px dotted var(--mut)}
   .sec h3 .cap{display:block;margin-top:3px;font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--mut)}
   .stale{color:#ffb454;font-weight:700;cursor:help}
-  .fch{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut);margin:22px 22px 6px}
-  #page-forecast table{width:calc(100% - 44px);margin:0 22px 8px}
-  #fcontent .stalerow:hover{background:#241c1c}
+  .fch{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut);margin:24px 22px 8px;padding-left:11px;border-left:3px solid var(--acc)}
+  #page-forecast table,#page-deals table{width:calc(100% - 44px);margin:0 22px 16px;background:var(--panel);border:1px solid var(--line);
+       border-radius:14px;border-collapse:separate;border-spacing:0;box-shadow:var(--sh1);overflow:hidden}
+  #fcontent thead th,#dealcontent thead th{position:static;background:var(--panel2)}
+  #fcontent tbody tr:last-child td,#dealcontent tbody tr:last-child td{border-bottom:none}
+  #fcontent .stalerow:hover{background:rgba(255,180,84,.10);box-shadow:inset 3px 0 0 #ffb454}
   .pair{padding:7px 0;border-bottom:1px solid #20262e}
   .pair .pname{font-weight:600} .pair .pstat{margin-top:5px}
   .pstat{font-size:12px;padding:3px 6px;max-width:210px}
@@ -111,7 +115,7 @@
   .finding{margin:9px 0} .finding .ft{display:flex;align-items:center;gap:8px}
   .finding .fname{font-weight:600;font-size:12.5px;min-width:140px}
   .finding .fbar{flex:1;max-width:120px;height:6px;background:#2a313b;border-radius:4px;overflow:hidden}
-  .finding .fbar>i{display:block;height:100%;background:var(--acc)}
+  .finding .fbar>i{display:block;height:100%;background:var(--grad)}
   .finding .fnum{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--mut)}
   .finding .fdesc{font-size:12px;color:#c4cdd8;margin-top:3px}
   .conf{font-size:10px;color:var(--good);border:1px solid rgba(62,207,142,.4);border-radius:4px;padding:0 5px;margin-left:2px;text-transform:uppercase;letter-spacing:.3px}
@@ -125,9 +129,12 @@
   .badge-amber{font-size:10px;color:#ffb454;border:1px solid rgba(255,180,84,.4);border-radius:4px;padding:0 5px;text-transform:uppercase;letter-spacing:.3px}
   .badge-mut{font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 5px;text-transform:uppercase;letter-spacing:.3px}
   .fhero{margin:8px 22px 0;font-size:13.5px;color:#cdd6e0} .fhero .big{font-size:22px;font-weight:700;color:var(--good)}
-  .trtbl{width:100%;font-size:12px;margin:6px 0} .trtbl th{font-size:10.5px} .trtbl td{padding:5px 6px;vertical-align:top}
+  .trtbl{width:100%;font-size:12px;margin:6px 0;border:1px solid var(--line);border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;background:var(--panel2)}
+  .trtbl th{font-size:10.5px;position:static;background:var(--raised)} .trtbl td{padding:5px 6px;vertical-align:top}
+  .trtbl tr:last-child td{border-bottom:none}
   .tradd{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px} .tradd .trin{font-size:12px;padding:4px 6px;flex:1;min-width:88px} .trdel{color:var(--mut);background:none;border:none;cursor:pointer}
-  #page-deals table{width:calc(100% - 44px);margin:0 22px 8px} #dealcontent .dealrow{cursor:pointer} #dealcontent .dealrow:hover{background:#1b212a}
+  #dealcontent .dealrow{cursor:pointer} #dealcontent .dealrow:hover{background:rgba(91,157,255,.10);box-shadow:inset 3px 0 0 var(--acc)}
+  #fcontent .taskrow{cursor:pointer} #fcontent .taskrow:hover{background:rgba(91,157,255,.10);box-shadow:inset 3px 0 0 var(--acc)}
   .loginwrap{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
              background:var(--bg) radial-gradient(820px 520px at 50% -5%,rgba(91,157,255,.12),transparent 62%)}
   .loginbox{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:18px;padding:34px 34px 30px;width:min(380px,92vw);text-align:center;box-shadow:var(--sh3)}
