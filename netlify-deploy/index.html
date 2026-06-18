@@ -117,6 +117,12 @@
   .loginbox button{width:100%;padding:10px;font-weight:600;border-color:var(--acc)}
   .loginerr{color:#ff6b6b;font-size:12px;margin-top:8px;min-height:14px}
   #logout{color:var(--mut);font-size:11px;margin-left:10px;text-decoration:none;cursor:pointer} #logout:hover{color:var(--acc)}
+  .fchips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 22px 0}
+  .fchips .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;cursor:pointer}
+  .fchips .chip .cx{color:var(--mut);margin-left:2px} .fchips .chip:hover{border-color:var(--acc)}
+  .fchips .chipclear{color:var(--mut);font-size:12px;cursor:pointer;align-self:center;margin-left:4px} .fchips .chipclear:hover{color:var(--acc)}
+  .ovbar:hover{filter:brightness(1.3)} .ovcard{cursor:pointer} .ovcard:hover{border-color:var(--acc)}
+  .blink,.slink{color:var(--acc);cursor:pointer} .blink:hover,.slink:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -182,6 +188,7 @@
     <button id="queue">Call queue</button><button id="due">Due today</button><button id="reset">Reset</button><button id="export">Export CSV</button>
     <span class="muted" id="count"></span>
   </div>
+  <div id="fchips" class="fchips"></div>
   <div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div>
 </section>
 
@@ -339,6 +346,8 @@ const COLS=[["priority_rank","#","Priority rank in the book."],["firm","Firm",""
   ["stage","Stage","Pipeline stage; drives the forecast win-probability."],["weighted_fee","Weighted","Estimated Manganelli fee × the stage's win-probability."]];
 let sortKey="live_intent",sortDir=-1,q="",queueMode=false,dueMode=false;
 function val(id){return document.getElementById(id).value;}
+const F={career:"",rev:"",retiring:false};
+function revBandLabel(e){const r=e.revenue;if(!r)return "Unknown";if(r<1.5e6)return "< $1.5M";if(r<3e6)return "$1.5–3M";if(r<5e6)return "$3–5M";if(r<=10e6)return "$5–10M";if(r<=15e6)return "$10–15M";return "> $15M";}
 function rows(){let r=view();
   const fW=val("fWave"),fB=val("fBand"),fS=val("fSucc"),fSt=val("fState"),fSv=val("fSvc"),warm=document.getElementById("fWarm").checked;
   if(q){const s=q.toLowerCase();r=r.filter(e=>(e.firm+" "+e.owners+" "+e.contact_person+" "+e.location).toLowerCase().includes(s));}
@@ -346,6 +355,9 @@ function rows(){let r=view();
   if(fS)r=r.filter(e=>e.succession_strength===fS);if(fSt)r=r.filter(e=>e.state===fSt);
   if(fSv)r=r.filter(e=>(e.service_mix||"").includes(fSv));if(warm)r=r.filter(e=>e.warm_path_points>0);
   const fo=val("fOwner");if(fo)r=r.filter(e=>(e.owner||"Unassigned")===fo);
+  if(F.career)r=r.filter(e=>e.career_stage===F.career);
+  if(F.rev)r=r.filter(e=>revBandLabel(e)===F.rev);
+  if(F.retiring)r=r.filter(e=>e.retirement_flag==="Yes");
   if(queueMode)r=r.filter(e=>(e.live_band==="High"||e.live_band==="Medium")&&["sourced","researched","contacted","engaged","qualified"].includes(curStage(e)));
   const _today=new Date().toISOString().slice(0,10);
   if(dueMode)r=r.filter(e=>STAGE[curStage(e)].cat==="open"&&e.next_action_date&&e.next_action_date<=_today);
@@ -372,6 +384,23 @@ function render(){
     <td>${esc(STAGE[curStage(e)].label)}${isStale(e)?` <span class="stale" title="Quiet ${daysSinceTouch(e)}d — past stage SLA">⚠</span>`:""}</td>
     <td class="muted">${(()=>{const f=forecast(e);return f?fmtMoney(f.weighted_fee):"—";})()}</td></tr>`).join("");
   document.querySelectorAll("#body tr").forEach(tr=>tr.onclick=()=>openSeller(tr.dataset.firm));
+  renderChips();
+}
+function clearSupplyFilters(){q="";document.getElementById("q").value="";["fWave","fBand","fSucc","fState","fSvc","fOwner"].forEach(id=>document.getElementById(id).value="");document.getElementById("fWarm").checked=false;F.career="";F.rev="";F.retiring=false;queueMode=false;dueMode=false;}
+function renderChips(){
+  const el=document.getElementById("fchips");if(!el)return;const c=[];const add=(label,clear)=>c.push({label,clear});
+  if(q)add("Search: "+q,()=>{q="";document.getElementById("q").value="";});
+  [["fWave","Wave"],["fBand","Intent"],["fSucc","Succession"],["fState","State"],["fSvc","Service"],["fOwner","Owner"]].forEach(([id,lab])=>{const v=val(id);if(v)add(lab+": "+v,()=>{document.getElementById(id).value="";});});
+  if(document.getElementById("fWarm").checked)add("Warm path only",()=>{document.getElementById("fWarm").checked=false;});
+  if(F.career)add("Career: "+F.career,()=>{F.career="";});
+  if(F.rev)add("Revenue: "+F.rev,()=>{F.rev="";});
+  if(F.retiring)add("Retiring owner",()=>{F.retiring=false;});
+  if(queueMode)add("Call queue",()=>{queueMode=false;});
+  if(dueMode)add("Due today",()=>{dueMode=false;});
+  el.innerHTML=c.length?c.map((x,i)=>`<span class="chip" data-i="${i}">${esc(x.label)} <span class="cx">✕</span></span>`).join("")+`<span class="chipclear">Clear all</span>`:"";
+  el._clears=c.map(x=>x.clear);
+  el.querySelectorAll(".chip").forEach(ch=>ch.onclick=()=>{el._clears[+ch.dataset.i]();render();summary();});
+  const ca=el.querySelector(".chipclear");if(ca)ca.onclick=()=>{clearSupplyFilters();render();summary();};
 }
 const COMPDEF={
   succession:["Succession signal","Explicit retirement, no-successor, or 'for sale' signals found in the source data. Weighted highest (max 35) — the strongest proxy that an owner is ready to sell."],
@@ -514,7 +543,7 @@ function openSeller(firm){
       <div class="touch">${esc(e.succession_signal)||"No narrative signal captured."}</div></details>
     <div class="sec"><h3>Buyer fit &amp; outreach<span class="cap">Each fit buyer is a trackable approach — set its status as you work it.</span></h3>${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}
       ${(()=>{const sg=pairSuggestion(e);return sg?`<div class="suggest">${sg.label} — suggest moving the stage to <b>${STAGE[sg.implied].label}</b>. <button class="applyst" data-stage="${sg.implied}">Move to ${STAGE[sg.implied].label}</button></div>`:"";})()}
-      ${(e.cbuyers||[]).length?e.cbuyers.map(c=>`<div class="pair"><span class="pname">${esc(c.name)}</span> <span class="muted">fit ${c.score}${c.type?(" · "+esc(c.type)):""}</span> ${c.score>=85?'<span class="conf">strong fit</span>':'<span class="badge-mut">broad</span>'}${c.why?`<div class="muted" style="font-size:11.5px">${esc(c.why)}</div>`:""}<select class="pstat" data-buyer="${esc(c.name)}">${PAIR_STATES.map(o=>`<option value="${o}" ${pairStatus(e.firm,c.name)===o?"selected":""}>${o||"— not started"}</option>`).join("")}</select></div>`).join(""):'<div class="note">No strong buyer match under current criteria.</div>'}</div>
+      ${(e.cbuyers||[]).length?e.cbuyers.map(c=>`<div class="pair"><span class="pname blink" data-bn="${esc(c.name)}">${esc(c.name)}</span> <span class="muted">fit ${c.score}${c.type?(" · "+esc(c.type)):""}</span> ${c.score>=85?'<span class="conf">strong fit</span>':'<span class="badge-mut">broad</span>'}${c.why?`<div class="muted" style="font-size:11.5px">${esc(c.why)}</div>`:""}<select class="pstat" data-buyer="${esc(c.name)}">${PAIR_STATES.map(o=>`<option value="${o}" ${pairStatus(e.firm,c.name)===o?"selected":""}>${o||"— not started"}</option>`).join("")}</select></div>`).join(""):'<div class="note">No strong buyer match under current criteria.</div>'}</div>
     <div class="sec"><h3>Contact &amp; first touch</h3>
       <div class="kv"><div>Best contact</div><div>${esc(e.contact_person)||"—"}</div>
         <div>Email</div><div>${esc(e.best_email)||"—"} <span class="pill ${eq.cls}" style="font-size:10px;padding:0 6px">${eq.label}</span></div>
@@ -555,6 +584,7 @@ function openSeller(firm){
       saveEdit(firm,patch);render();summary();if(typeof renderForecast==="function")renderForecast();
       if(["joey_knows","sam_knows","knows_buyer_in_network","running_numbers_connection","referral_partner_connection","stage"].includes(f))openSeller(firm);});});
   drawer.querySelectorAll(".pstat").forEach(sl=>sl.addEventListener("change",()=>{setPair(firm,sl.dataset.buyer,sl.value);openSeller(firm);}));
+  drawer.querySelectorAll(".blink").forEach(el=>el.onclick=()=>{const b=BUYERS.find(x=>x.name===el.dataset.bn);if(b)openBuyer(b.id);});
   const ap=drawer.querySelector(".applyst");if(ap)ap.onclick=()=>{const ns=ap.dataset.stage;const a=activityOf(e);a.push({ts:new Date().toISOString(),who:e.owner||"—",channel:"Stage",note:"Moved to "+STAGE[ns].label+" (buyer activity)"});saveEdit(firm,{stage:ns,stage_entered_at:new Date().toISOString().slice(0,10),activity:a});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
   const lg=drawer.querySelector("#lgBtn");if(lg)lg.onclick=()=>{const note=(drawer.querySelector("#lgNote").value||"").trim();if(!note)return;logTouch(firm,{ts:new Date().toISOString(),who:drawer.querySelector("#lgWho").value,channel:drawer.querySelector("#lgCh").value,note});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
   wireTrackers(firm);
@@ -606,10 +636,11 @@ function openBuyer(id){const b=BUYERS.find(x=>x.id===id);
       <div>Website</div><div>${b.website?`<a href="https://${esc(b.website)}" target="_blank">${esc(b.website)}</a>`:"—"}</div></div></div>
     <div class="sec"><h3>Demand pipeline <span class="muted">(${b.matched_count||0} fit sellers)</span></h3>
       ${demandRollup(b)}
-      ${(b.real_matched||[]).slice(0,15).map(m=>`<div class="pair"><span class="pname">${esc(m.firm)}</span> <span class="muted">fit ${m.score}${m.state?(" · "+esc(m.state)):""} · ${fmtMoney(m.revenue)}</span><select class="pstat" data-firm="${esc(m.firm)}" data-buyer="${esc(b.name)}">${PAIR_STATES.map(o=>`<option value="${o}" ${pairStatus(m.firm,b.name)===o?"selected":""}>${o||"— not started"}</option>`).join("")}</select></div>`).join("")||'<span class="muted">No strong-fit sellers — this buyer is not a top-3 targeted fit for any firm in the book.</span>'}
+      ${(b.real_matched||[]).slice(0,15).map(m=>`<div class="pair"><span class="pname slink" data-sf="${esc(m.firm)}">${esc(m.firm)}</span> <span class="muted">fit ${m.score}${m.state?(" · "+esc(m.state)):""} · ${fmtMoney(m.revenue)}</span><select class="pstat" data-firm="${esc(m.firm)}" data-buyer="${esc(b.name)}">${PAIR_STATES.map(o=>`<option value="${o}" ${pairStatus(m.firm,b.name)===o?"selected":""}>${o||"— not started"}</option>`).join("")}</select></div>`).join("")||'<span class="muted">No strong-fit sellers — this buyer is not a top-3 targeted fit for any firm in the book.</span>'}
       ${(b.real_matched||[]).length>15?`<div class="note">Showing top 15 of ${b.matched_count}.</div>`:""}</div>`;
   drawer.classList.add("open");
   drawer.querySelectorAll(".pstat").forEach(sl=>sl.addEventListener("change",()=>{setPair(sl.dataset.firm,sl.dataset.buyer,sl.value);openBuyer(b.id);brender();}));
+  drawer.querySelectorAll(".slink").forEach(el=>el.onclick=()=>openSeller(el.dataset.sf));
 }
 function bsummary(){const t=BUYERS.length;const matched=BUYERS.filter(b=>(b.matched_count||0)>0).length;
   const types=new Set(BUYERS.map(b=>b.type)).size;
@@ -617,10 +648,10 @@ function bsummary(){const t=BUYERS.length;const matched=BUYERS.filter(b=>(b.matc
     .map(c=>`<div class="card"><b>${c[0]}</b><span>${c[1]}</span></div>`).join("");}
 
 /* ================= OVERVIEW ================= */
-function barChart(title,pairs){
+function barChart(title,pairs,fk){
   const max=Math.max(1,...pairs.map(p=>p[1]));
   return `<div style="break-inside:avoid;margin:0 0 20px"><h3 style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut)">${title}</h3>`+
-    pairs.map(p=>`<div style="display:flex;align-items:center;gap:10px;margin:3px 0;font-size:12.5px">
+    pairs.map(p=>`<div class="ovbar"${fk?` data-fk="${fk}" data-fv="${esc(p[0])}"`:""} style="display:flex;align-items:center;gap:10px;margin:3px 0;font-size:12.5px;${fk?"cursor:pointer":""}">
       <div style="width:130px;color:var(--mut);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p[0])}</div>
       <div style="flex:1;background:#2a313b;border-radius:4px;overflow:hidden;height:16px"><div style="height:100%;width:${Math.round(100*p[1]/max)}%;background:linear-gradient(90deg,#4f9cf9,#3ecf8e)"></div></div>
       <div style="width:42px;font-variant-numeric:tabular-nums">${p[1]}</div></div>`).join("")+`</div>`;
@@ -633,22 +664,44 @@ function renderOverview(){
   const hi=v.filter(e=>e.live_band==="High").length, ret=v.filter(e=>e.retirement_flag==="Yes").length;
   const w1=v.filter(e=>e.wave===1).length, late=v.filter(e=>e.career_stage==="Late-career").length;
   const bm=BUYERS.filter(b=>b.matched_count>0).length;
-  document.getElementById("ovcards").innerHTML=[[v.length,"sellers"],[hi,"high intent"],[late,"late-career"],[ret,"retiring"],[w1,"emailable now"],[BUYERS.length,"buyers"],[bm,"buyers w/ matches"]]
-    .map(c=>`<div class="card"><b>${c[0]}</b><span>${c[1]}</span></div>`).join("");
+  document.getElementById("ovcards").innerHTML=[[v.length,"sellers","all"],[hi,"high intent","band:High"],[late,"late-career","career:Late-career"],[ret,"retiring","retiring"],[w1,"emailable now","wave:1"],[BUYERS.length,"buyers","buyers"],[bm,"buyers w/ matches","buyers"]]
+    .map(c=>`<div class="card ovcard" data-act="${c[2]}"><b>${c[0]}</b><span>${c[1]}</span></div>`).join("");
+  document.querySelectorAll("#ovcards .ovcard").forEach(cd=>cd.onclick=()=>applyCard(cd.dataset.act));
   const oh=document.getElementById("ovhead");
   if(oh)oh.textContent=`Start with the ${hi} High-intent firms: ${ret} show a retiring owner and ${late} are late-career. Work the Call queue on the Supply tab first.`;
   const rb={"< $1.5M":0,"$1.5–3M":0,"$3–5M":0,"$5–10M":0,"$10–15M":0,"> $15M":0,"Unknown":0};
   v.forEach(e=>{const r=e.revenue;if(!r)rb["Unknown"]++;else if(r<1.5e6)rb["< $1.5M"]++;else if(r<3e6)rb["$1.5–3M"]++;else if(r<5e6)rb["$3–5M"]++;else if(r<=10e6)rb["$5–10M"]++;else if(r<=15e6)rb["$10–15M"]++;else rb["> $15M"]++;});
   const charts=
-    barChart("Seller-intent band",ord(cnt(v,e=>e.live_band),["High","Medium","Low"]))+
-    barChart("Succession strength",ord(cnt(v,e=>e.succession_strength),["High","Medium","Low"]))+
-    barChart("Owner career stage",ord(cnt(v,e=>e.career_stage),["Late-career","Mid-career","Early-career","Unknown"]))+
-    barChart("Outreach wave",ord(cnt(v,e=>"Wave "+e.wave),["Wave 1","Wave 2"]))+
-    barChart("Revenue band",Object.entries(rb))+
-    barChart("Top 12 states",top(cnt(v,e=>e.state),12))+
-    barChart("Buyer types",top(cnt(BUYERS,b=>b.type),20))+
+    barChart("Seller-intent band",ord(cnt(v,e=>e.live_band),["High","Medium","Low"]),"band")+
+    barChart("Succession strength",ord(cnt(v,e=>e.succession_strength),["High","Medium","Low"]),"succ")+
+    barChart("Owner career stage",ord(cnt(v,e=>e.career_stage),["Late-career","Mid-career","Early-career","Unknown"]),"career")+
+    barChart("Outreach wave",ord(cnt(v,e=>"Wave "+e.wave),["Wave 1","Wave 2"]),"wave")+
+    barChart("Revenue band",Object.entries(rb),"rev")+
+    barChart("Top 12 states",top(cnt(v,e=>e.state),12),"state")+
+    barChart("Buyer types",top(cnt(BUYERS,b=>b.type),20),"btype")+
     barChart("Buyer match coverage",[["With matched sellers",bm],["No matches yet",BUYERS.length-bm]]);
   document.getElementById("charts").innerHTML="<div style='columns:2;column-gap:36px;max-width:1100px'>"+charts+"</div>";
+  document.querySelectorAll("#charts .ovbar").forEach(b=>b.onclick=()=>applyOv(b.dataset.fk,b.dataset.fv));
+}
+function applyOv(fk,fv){
+  if(fk==="btype"){clearSupplyFilters();document.getElementById("bType").value=fv;bq="";document.getElementById("bq").value="";document.querySelector('.tab[data-tab="buyers"]').click();brender();return;}
+  clearSupplyFilters();
+  if(fk==="band")document.getElementById("fBand").value=fv;
+  else if(fk==="succ")document.getElementById("fSucc").value=fv;
+  else if(fk==="state")document.getElementById("fState").value=fv;
+  else if(fk==="wave")document.getElementById("fWave").value=(fv.match(/\d/)||[""])[0];
+  else if(fk==="career")F.career=fv;
+  else if(fk==="rev")F.rev=fv;
+  document.querySelector('.tab[data-tab="supply"]').click();render();summary();
+}
+function applyCard(act){
+  if(act==="buyers"){document.querySelector('.tab[data-tab="buyers"]').click();return;}
+  clearSupplyFilters();
+  if(act==="band:High")document.getElementById("fBand").value="High";
+  else if(act==="career:Late-career")F.career="Late-career";
+  else if(act==="retiring")F.retiring=true;
+  else if(act==="wave:1")document.getElementById("fWave").value="1";
+  document.querySelector('.tab[data-tab="supply"]').click();render();summary();
 }
 
 /* ================= FORECAST ================= */
