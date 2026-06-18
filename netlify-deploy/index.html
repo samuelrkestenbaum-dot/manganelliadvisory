@@ -101,6 +101,8 @@
   details.more>summary{cursor:pointer;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut);list-style:none}
   details.more>summary::-webkit-details-marker{display:none}
   details.more>summary:before{content:"▸ ";color:var(--acc)} details.more[open]>summary:before{content:"▾ "}
+  .suggest{background:rgba(79,156,249,.12);border:1px solid rgba(79,156,249,.45);border-radius:8px;padding:8px 10px;margin:8px 0;font-size:12.5px;color:#dce6f2}
+  .suggest button{margin-left:6px;font-size:11.5px;padding:3px 8px}
 </style>
 </head>
 <body>
@@ -153,7 +155,7 @@
     <select id="fSvc"><option value="">All services</option></select>
     <select id="fOwner"><option value="">All owners</option></select>
     <label class="chk" style="margin:0 4px"><input type="checkbox" id="fWarm"/> Warm path only</label>
-    <button id="queue">Call queue</button><button id="reset">Reset</button><button id="export">Export CSV</button>
+    <button id="queue">Call queue</button><button id="due">Due today</button><button id="reset">Reset</button><button id="export">Export CSV</button>
     <span class="muted" id="count"></span>
   </div>
   <div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div>
@@ -280,7 +282,7 @@ const COLS=[["priority_rank","#","Priority rank in the book."],["firm","Firm",""
   ["revenue","Revenue","Estimated annual revenue — most figures are estimates (see the firm panel)."],["service_mix","Service mix","Web-researched service lines."],["state","St",""],["contact_person","Contact",""],
   ["email_confidence","Email","How reachable a decision-maker is by email. 'shared' = a generic inbox (info@/team@), not the owner's direct line."],["wave","Wave","Wave 1 = verified email, callable now. Wave 2 = needs a contact found first."],
   ["stage","Stage","Pipeline stage; drives the forecast win-probability."],["weighted_fee","Weighted","Estimated Manganelli fee × the stage's win-probability."]];
-let sortKey="live_intent",sortDir=-1,q="",queueMode=false;
+let sortKey="live_intent",sortDir=-1,q="",queueMode=false,dueMode=false;
 function val(id){return document.getElementById(id).value;}
 function rows(){let r=view();
   const fW=val("fWave"),fB=val("fBand"),fS=val("fSucc"),fSt=val("fState"),fSv=val("fSvc"),warm=document.getElementById("fWarm").checked;
@@ -290,7 +292,10 @@ function rows(){let r=view();
   if(fSv)r=r.filter(e=>(e.service_mix||"").includes(fSv));if(warm)r=r.filter(e=>e.warm_path_points>0);
   const fo=val("fOwner");if(fo)r=r.filter(e=>(e.owner||"Unassigned")===fo);
   if(queueMode)r=r.filter(e=>(e.live_band==="High"||e.live_band==="Medium")&&["sourced","researched","contacted","engaged","qualified"].includes(curStage(e)));
+  const _today=new Date().toISOString().slice(0,10);
+  if(dueMode)r=r.filter(e=>STAGE[curStage(e)].cat==="open"&&e.next_action_date&&e.next_action_date<=_today);
   r.sort((a,b)=>{
+    if(dueMode)return (a.next_action_date||"").localeCompare(b.next_action_date||"");
     if(sortKey==="stage")return sortDir*(STAGES.findIndex(s=>s.k===curStage(a))-STAGES.findIndex(s=>s.k===curStage(b)));
     if(sortKey==="weighted_fee"){const fa=forecast(a),fb=forecast(b);return sortDir*(((fa?fa.weighted_fee:0))-((fb?fb.weighted_fee:0)));}
     let x=a[sortKey],y=b[sortKey];if(typeof x==="string")return sortDir*((x||"").localeCompare(y||""));return sortDir*(((x||0)-(y||0)));});
@@ -346,6 +351,8 @@ const OWNERS=["Joe","Sam","Unassigned"];
 function migrateStatus(e){const m={"New":(e.service_mix_confidence==="researched"?"researched":"sourced"),"Researching":"researched","Queued":"researched","Contacted":"contacted","In conversation":"engaged","Meeting set":"engaged","Engaged":"engaged","Passed":"closed_lost"};return m[e.outreach_status]||"researched";}
 function curStage(e){return e.stage||migrateStatus(e);}
 function stageSince(e){return e.stage_entered_at||e.last_touch||null;}
+function stageRank(k){return STAGES.findIndex(s=>s.k===k);}
+function pairSuggestion(e){const sts=(e.cbuyers||[]).map(c=>pairStatus(e.firm,c.name)).filter(Boolean);if(!sts.length)return null;const loi=sts.filter(s=>s==="LOI").length,intr=sts.filter(s=>s==="Interested").length,appr=sts.filter(s=>s==="Approached").length;let implied=null,label="";if(loi){implied="loi";label=`${loi} buyer${loi>1?"s":""} at LOI`;}else if(intr){implied="in_market";label=`${intr} buyer${intr>1?"s":""} interested`;}else if(appr){implied="in_market";label=`${appr} buyer${appr>1?"s":""} approached`;}if(!implied||stageRank(implied)<=stageRank(curStage(e)))return null;return {implied,label};}
 function daysInStage(e){const d=stageSince(e);return d?Math.floor((Date.now()-Date.parse(d))/864e5):null;}
 function activityOf(e){return (e.activity||[]).slice();}
 function lastActivityTs(e){const a=e.activity||[];return a.length?a[a.length-1].ts:(e.stage_entered_at||e.last_touch||null);}
@@ -449,6 +456,7 @@ function openSeller(firm){
         ${e.niche_vertical?`<div>Niche</div><div>${esc(e.niche_vertical)}</div>`:""}</div>
       <div class="touch">${esc(e.succession_signal)||"No narrative signal captured."}</div></details>
     <div class="sec"><h3>Buyer fit &amp; outreach<span class="cap">Each fit buyer is a trackable approach — set its status as you work it.</span></h3>${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}
+      ${(()=>{const sg=pairSuggestion(e);return sg?`<div class="suggest">${sg.label} — suggest moving the stage to <b>${STAGE[sg.implied].label}</b>. <button class="applyst" data-stage="${sg.implied}">Move to ${STAGE[sg.implied].label}</button></div>`:"";})()}
       ${(e.cbuyers||[]).length?e.cbuyers.map(c=>`<div class="pair"><span class="pname">${esc(c.name)}</span> <span class="muted">fit ${c.score}${c.type?(" · "+esc(c.type)):""}</span>${c.why?`<div class="muted" style="font-size:11.5px">${esc(c.why)}</div>`:""}<select class="pstat" data-buyer="${esc(c.name)}">${PAIR_STATES.map(o=>`<option value="${o}" ${pairStatus(e.firm,c.name)===o?"selected":""}>${o||"— not started"}</option>`).join("")}</select></div>`).join(""):'<div class="note">No strong buyer match under current criteria.</div>'}</div>
     <div class="sec"><h3>Contact &amp; first touch</h3>
       <div class="kv"><div>Best contact</div><div>${esc(e.contact_person)||"—"}</div>
@@ -471,6 +479,7 @@ function openSeller(firm){
       ${curStage(e)==="closed_lost"?`<label class="fld">Loss / nurture reason</label>${sel(e,"loss_reason",["","price","timing / not ready","chose another advisor","going to known buyer directly","merged elsewhere","unresponsive","other"])}`:""}
       <label class="fld">Expected close</label><input class="full" type="date" data-f="expected_close" value="${esc(e.expected_close)}"/>
       <label class="fld">Next action</label><input class="full" data-f="next_action" value="${esc(e.next_action)}"/>
+      <label class="fld">Next-action date (worklist)</label><input class="full" type="date" data-f="next_action_date" value="${esc(e.next_action_date)}"/>
       <label class="fld">Last touch</label><input class="full" type="date" data-f="last_touch" value="${esc(e.last_touch)}"/>
       ${stageSince(e)?`<div class="note">In ${STAGE[curStage(e)].label} ${daysInStage(e)!=null?("· "+daysInStage(e)+"d"):""} (since ${esc(stageSince(e))}).</div>`:""}</div>
     <div class="sec"><h3>Activity <span class="muted">${daysSinceTouch(e)!=null?("· "+daysSinceTouch(e)+"d since last touch"):"· no touches logged"}</span></h3>
@@ -488,7 +497,8 @@ function openSeller(firm){
       if(f==="stage"){patch.stage_entered_at=new Date().toISOString().slice(0,10);const a=activityOf(e);a.push({ts:new Date().toISOString(),who:e.owner||"—",channel:"Stage",note:"Moved to "+STAGE[v].label});patch.activity=a;}
       saveEdit(firm,patch);render();summary();if(typeof renderForecast==="function")renderForecast();
       if(["joey_knows","sam_knows","knows_buyer_in_network","running_numbers_connection","referral_partner_connection","stage"].includes(f))openSeller(firm);});});
-  drawer.querySelectorAll(".pstat").forEach(sl=>sl.addEventListener("change",()=>{setPair(firm,sl.dataset.buyer,sl.value);}));
+  drawer.querySelectorAll(".pstat").forEach(sl=>sl.addEventListener("change",()=>{setPair(firm,sl.dataset.buyer,sl.value);openSeller(firm);}));
+  const ap=drawer.querySelector(".applyst");if(ap)ap.onclick=()=>{const ns=ap.dataset.stage;const a=activityOf(e);a.push({ts:new Date().toISOString(),who:e.owner||"—",channel:"Stage",note:"Moved to "+STAGE[ns].label+" (buyer activity)"});saveEdit(firm,{stage:ns,stage_entered_at:new Date().toISOString().slice(0,10),activity:a});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
   const lg=drawer.querySelector("#lgBtn");if(lg)lg.onclick=()=>{const note=(drawer.querySelector("#lgNote").value||"").trim();if(!note)return;logTouch(firm,{ts:new Date().toISOString(),who:drawer.querySelector("#lgWho").value,channel:drawer.querySelector("#lgCh").value,note});render();summary();if(typeof renderForecast==="function")renderForecast();openSeller(firm);};
 }
 function chk(e,f,label){return `<label class="chk"><input type="checkbox" data-f="${f}" ${yes(e[f])?"checked":""}/> ${label}</label>`;}
@@ -605,8 +615,13 @@ function renderForecast(){
   const ownerTbl=`<table><thead><tr><th>Owner</th><th>Open firms</th><th>Weighted pipeline</th></tr></thead><tbody>${owners.map(o=>{const a=open.filter(x=>(x.e.owner||"Unassigned")===o);return `<tr><td>${esc(o)}</td><td>${a.length}</td><td><b>${fmtMoney(wsum(a))}</b></td></tr>`;}).join("")}</tbody></table>`;
   const stale=open.filter(x=>isStale(x.e)).sort((a,b)=>daysSinceTouch(b.e)-daysSinceTouch(a.e));
   const staleTbl=stale.length?`<table><thead><tr><th>Firm</th><th>Stage</th><th>Days quiet</th><th>Owner</th><th>Weighted</th></tr></thead><tbody>${stale.map(x=>`<tr class="stalerow" data-firm="${esc(x.e.firm)}"><td class="firm">${esc(x.e.firm)}</td><td>${STAGE[x.st].label} <span class="stale">⚠</span></td><td>${daysSinceTouch(x.e)}d</td><td class="muted">${esc(x.e.owner||"Unassigned")}</td><td>${x.f?fmtMoney(x.f.weighted_fee):"—"}</td></tr>`).join("")}</tbody></table>`:'<div class="muted" style="margin:0 22px">Nothing stale — every open opportunity is within its stage SLA.</div>';
-  document.getElementById("fcontent").innerHTML=`<h3 class="fch">Pipeline by stage</h3>${stageTbl}<h3 class="fch">By owner</h3>${ownerTbl}<h3 class="fch">Stale &amp; needs attention (${stale.length})</h3>${staleTbl}`;
-  document.querySelectorAll("#fcontent .stalerow").forEach(tr=>tr.onclick=()=>{document.querySelector('.tab[data-tab="supply"]').click();openSeller(tr.dataset.firm);});
+  const today2=new Date().toISOString().slice(0,10),wk=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+  const tasks=open.filter(x=>x.e.next_action_date).sort((a,b)=>(a.e.next_action_date||"").localeCompare(b.e.next_action_date||""));
+  const od=tasks.filter(x=>x.e.next_action_date<today2),td=tasks.filter(x=>x.e.next_action_date===today2),sn=tasks.filter(x=>x.e.next_action_date>today2&&x.e.next_action_date<=wk);
+  const trow=x=>`<tr class="taskrow" data-firm="${esc(x.e.firm)}"><td class="firm">${esc(x.e.firm)}</td><td>${esc(x.e.next_action)||"—"}</td><td class="muted">${esc(x.e.next_action_date)}</td><td class="muted">${esc(x.e.owner||"Unassigned")}</td></tr>`;
+  const taskTbl=tasks.length?`<table><thead><tr><th>Firm</th><th>Next action</th><th>Due</th><th>Owner</th></tr></thead><tbody>${od.length?`<tr><td colspan="4" class="muted" style="color:#ff6b6b">Overdue (${od.length})</td></tr>`+od.map(trow).join(""):""}${td.length?`<tr><td colspan="4" class="muted" style="color:#ffb454">Due today (${td.length})</td></tr>`+td.map(trow).join(""):""}${sn.length?`<tr><td colspan="4" class="muted">Next 7 days (${sn.length})</td></tr>`+sn.map(trow).join(""):""}</tbody></table>`:'<div class="muted" style="margin:0 22px">No dated next-actions yet — set a “Next-action date” on a firm (in its Pipeline panel) to build the worklist.</div>';
+  document.getElementById("fcontent").innerHTML=`<h3 class="fch">Worklist — due &amp; overdue (${od.length+td.length})</h3>${taskTbl}<h3 class="fch">Pipeline by stage</h3>${stageTbl}<h3 class="fch">By owner</h3>${ownerTbl}<h3 class="fch">Stale &amp; needs attention (${stale.length})</h3>${staleTbl}`;
+  document.querySelectorAll("#fcontent .stalerow,#fcontent .taskrow").forEach(tr=>tr.onclick=()=>{document.querySelector('.tab[data-tab="supply"]').click();openSeller(tr.dataset.firm);});
 }
 
 /* ---------------- init ---------------- */
@@ -620,8 +635,9 @@ function renderForecast(){
   ["q","fWave","fBand","fSucc","fState","fSvc"].forEach(id=>document.getElementById(id).addEventListener("input",()=>{if(id==="q")q=val("q");render();summary();}));
   document.getElementById("fWarm").addEventListener("change",render);
   document.getElementById("fOwner").addEventListener("change",()=>{render();summary();renderForecast();});
-  document.getElementById("reset").onclick=()=>{queueMode=false;["q","fWave","fBand","fSucc","fState","fSvc","fOwner"].forEach(id=>document.getElementById(id).value="");document.getElementById("fWarm").checked=false;q="";render();summary();};
-  document.getElementById("queue").onclick=()=>{queueMode=true;["fBand","fSucc","fState","fSvc"].forEach(id=>document.getElementById(id).value="");document.getElementById("q").value="";document.getElementById("fWarm").checked=false;document.getElementById("fWave").value="1";q="";sortKey="live_intent";sortDir=-1;document.querySelector('.tab[data-tab="supply"]').click();render();};
+  document.getElementById("reset").onclick=()=>{queueMode=false;dueMode=false;["q","fWave","fBand","fSucc","fState","fSvc","fOwner"].forEach(id=>document.getElementById(id).value="");document.getElementById("fWarm").checked=false;q="";render();summary();};
+  document.getElementById("queue").onclick=()=>{queueMode=true;dueMode=false;["fBand","fSucc","fState","fSvc"].forEach(id=>document.getElementById(id).value="");document.getElementById("q").value="";document.getElementById("fWarm").checked=false;document.getElementById("fWave").value="1";q="";sortKey="live_intent";sortDir=-1;document.querySelector('.tab[data-tab="supply"]').click();render();};
+  document.getElementById("due").onclick=()=>{dueMode=true;queueMode=false;["fBand","fSucc","fState","fSvc","fOwner","fWave"].forEach(id=>document.getElementById(id).value="");document.getElementById("q").value="";document.getElementById("fWarm").checked=false;q="";document.querySelector('.tab[data-tab="supply"]').click();render();};
   document.getElementById("export").onclick=exportCSV;
   // buyer filters
   const btypes=[...new Set(BUYERS.map(b=>b.type).filter(Boolean))].sort();
