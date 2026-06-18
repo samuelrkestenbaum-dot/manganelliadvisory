@@ -54,10 +54,16 @@ ready to sell, based mostly on succession/retirement signals and owner age/tenur
 It's a priority cue, not a verdict — your read of the conversation always wins.
 
 ## Honest caveats (so you trust it correctly)
-- **Service mix** is thin right now (a lot of firms just say "Mixed CPA") — we
-  haven't done the per-firm web research pass yet. Don't over-trust that one field.
+- **Service mix & industry niche** are now web-researched for all 441 real firms
+  (the lone exception is a placeholder test row). Each researched firm shows its
+  actual services, industry specialization, office count, and managing partner,
+  pulled from the firm's own website. A handful carry a short "verify" note where
+  the source data's location or owner name didn't match the live website — read
+  those notes before leaning on the record.
 - **Owner ages/tenure** are filled only where the source data stated them; many are
-  blank or estimated.
+  blank or estimated. The web pass did **not** recompute the seller-intent scores —
+  those still reflect the original succession/age signals, so a firm's niche is now
+  richer than its score "knows."
 - **Edits save in your browser only** for now — if you switch computers, your
   warm-path notes won't follow yet. We can turn on shared/synced editing when we're
   ready; just say the word.
@@ -65,6 +71,10 @@ It's a priority cue, not a verdict — your read of the conversation always wins
 ## The headline numbers (today)
 442 firms · 45 High / 132 Medium intent · 100 retiring-owner signals · 201
 late-career owners · 3 already for sale · 363 emailable now · 79 need a contact
-first · 60 buyers, all matched.
+first · 60 buyers, all matched. **Service-mix + niche now web-researched on all
+441 real firms** (e.g. PBC Advisors and McGovern = healthcare-only; Strohm Ballweg
+= insurance-only; Plodzik & Sanderson = NH municipal audits; Friedman Kannenberg =
+music industry). One firm — #116, "West of Nashville" — turned out to be an active,
+confidential BizBuySell for-sale listing.
 
 Questions or "can it also show X?" — easy to add. — Sam
